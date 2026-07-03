@@ -1,0 +1,13 @@
+{
+  "_id": "stop_100234", 
+  "stop_name": "El Cerrito Plaza BART",
+  "location": {
+    "type": "Point",
+    "coordinates": [-122.302, 37.898] 
+  },
+  "routes_served": ["AC_7", "AC_72M", "BART_ORANGE"],
+  "next_connections": [
+    { "stop_id": "stop_100235", "route_id": "AC_7", "travel_time_sec": 120 },
+    { "stop_id": "stop_105991", "route_id": "BART_ORANGE", "travel_time_sec": 180 }
+  ]
+}

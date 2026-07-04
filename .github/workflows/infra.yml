@@ -7,4 +7,7 @@ on:
 jobs:
   terraform:
     uses: franzkieviet/infra/.github/workflows/infra.yml@master
+    with:
+        branch: ${{ github.ref_name }}
+        project: "busable"
     secrets: inherit

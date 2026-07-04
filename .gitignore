@@ -1,0 +1,14 @@
+# Terraform
+*.tfstate
+*.tfstate.*
+crash.log
+
+.terraform/
+**/.terraform/*
+
+terraform.tfstate
+terraform.tfstate.backup
+
+# Ignore local CLI config
+.terraformrc
+terraform.rc

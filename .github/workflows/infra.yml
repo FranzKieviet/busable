@@ -1,0 +1,10 @@
+name: Infra
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  terraform:
+    uses: franzkieviet/infra/.github/workflows/infra.yml@master
+    secrets: inherit

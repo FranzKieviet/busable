@@ -1,3 +1,3 @@
 secrets= "busable-secrets-prod"
-enviroment = "prod"
+environment = "prod"
 branch = "0"

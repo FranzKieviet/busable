@@ -2,7 +2,7 @@ name: Infra
 
 on:
   push:
-    branches: [master]
+    branches: ["*"]
 
 jobs:
   terraform:

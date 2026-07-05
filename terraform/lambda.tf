@@ -6,7 +6,7 @@ data "archive_file" "dataloader_lambda_zip" {
 
 resource "aws_lambda_function" "dataloader" {
     filename      = data.archive_file.dataloader_lambda_zip.output_path
-    function_name = "dataloader"
+    function_name = "${local.project_prefix}-gtfs-ingestion-lambda"
     role          = aws_iam_role.lambda_role.arn
     handler       = "dataloader.lambda_handler"
     runtime       = "python3.10"
@@ -29,4 +29,7 @@ resource "aws_iam_role" "lambda_role" {
             }
         ]
     })
+    managed_policy_arns = [
+    "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+  ]
 }

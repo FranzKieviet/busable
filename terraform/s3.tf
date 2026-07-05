@@ -6,3 +6,9 @@ resource "aws_s3_bucket" "ingestion_bucket" {
     Environment = var.environment
   }
 }
+
+resource "aws_s3_bucket_notification" "gtfs_ingestion" {
+  bucket = aws_s3_bucket.ingestion_bucket.id
+
+  eventbridge = true
+}

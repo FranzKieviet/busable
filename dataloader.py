@@ -1,34 +1,34 @@
-
-
-
-""""
-{
-  "_id": "stop_100234", added!
-  "stop_name": "El Cerrito Plaza BART", added!
-  "location": { Added!
-    "type": "Point",
-    "coordinates": [-122.302, 37.898] 
-  },
-  "routes_served": ["AC_7", "AC_72M", "BART_ORANGE"],
-  "next_connections": [ TBD
-    { "stop_id": "stop_100235", "route_id": "AC_7", "travel_time_sec": 120 },
-    { "stop_id": "stop_105991", "route_id": "BART_ORANGE", "travel_time_sec": 180 }
-  ]
-}
-
-"""
 import csv
 from pathlib import Path
+import os
+import urllib.parse
+import boto3
+import io
+
+### For local testing: 
 AGENCY = "ac-transit"
+### Place GTFS files in a folder called "data" in the same directory as this script
 
 def load_file(agency, gtfsFileName, path=None):
-    if path is None:
-        path = Path(__file__).parent / "data" / agency / f"{gtfsFileName}.txt"
-    path = Path(path)
-    with path.open(newline="", encoding="utf-8") as fh:
+    s3_bucket = os.environ.get("S3_BUCKET")
+    if s3_bucket:
+        s3 = boto3.client("s3")
+        key = f"import/{agency}/{gtfsFileName}.txt"
+        obj = s3.get_object(Bucket=s3_bucket, Key=key)
+        content = obj["Body"].read().decode("utf-8")
+        fh = io.StringIO(content)
         reader = csv.DictReader(fh)
         for row in reader:
             yield row
+        return
+    else:
+        if path is None:
+            path = Path(__file__).parent / "data" / agency / f"{gtfsFileName}.txt"
+        path = Path(path)
+        with path.open(newline="", encoding="utf-8") as fh:
+            reader = csv.DictReader(fh)
+            for row in reader:
+                yield row
 
 def get_id(agency, type, id, direction_id=None):
     if direction_id is not None:
@@ -191,12 +191,22 @@ def process_stops(agency):
                 stops[stop_id]["next_connections"].append(prev_stop_connection)
     return stops
 
-def main():
-    stops = process_stops(AGENCY)
-    print(f"Loaded {len(stops)} stops for agency {AGENCY}")
-    print("Sample stop data:")
-    print(stops["ac-transit_stop_716"])  # Print sample stop data for El Cerrito Plaza BART
+def extract_s3_file_name(event):
+    detail = event.get("detail", {})
+    bucket = detail.get("bucket", {}).get("name")
+    key = detail.get("object", {}).get("key")
+    if key is None:
+        raise ValueError("Missing S3 object key in event")
+    key = urllib.parse.unquote_plus(key)
+    file_name = os.path.basename(key)
+    return bucket, key, file_name
 
-if __name__ == '__main__':
-    main()
-
+def lambda_handler(event, context):
+    # When a file is dropped into the triggers folder,
+    # this function will be triggered, and will kick of the ingestion process.
+    bucket, key, file_name = extract_s3_file_name(event)
+    
+    #Trigger files are name AGENCY-NAME_DATE.txt
+    agency = file_name.split("_")[0]
+    stops = process_stops(agency)
+    print(f"Processed {len(stops)} stops for agency {agency}")

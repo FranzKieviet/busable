@@ -3,19 +3,19 @@ resource "aws_cloudwatch_event_rule" "files_uploaded_rule" {
   description = "Trigger GTFS ingestion when files are uploaded to the S3 bucket"
 
   event_pattern = jsonencode({
-    source      = ["aws.s3"]
+    source = ["aws.s3"]
     detail-type = ["Object Created"]
     detail = {
         bucket = {
         name = [aws_s3_bucket.ingestion_bucket.bucket]
         }
         object = {
-            key = {
-            prefix = ["triggers/"]
-            }
+        key = [{
+            prefix = "triggers/"
+        }]
         }
     }
-  })
+    })
 }
 
 resource "aws_cloudwatch_event_target" "lambda" {

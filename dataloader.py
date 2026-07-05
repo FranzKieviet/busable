@@ -3,32 +3,44 @@ from pathlib import Path
 import os
 import urllib.parse
 import boto3
-import io
+from io import StringIO
+import botocore
 
 ### For local testing: 
 AGENCY = "ac-transit"
 ### Place GTFS files in a folder called "data" in the same directory as this script
 
 def load_file(agency, gtfsFileName, path=None):
-    s3_bucket = os.environ.get("S3_BUCKET")
-    if s3_bucket:
-        s3 = boto3.client("s3")
-        key = f"import/{agency}/{gtfsFileName}.txt"
-        obj = s3.get_object(Bucket=s3_bucket, Key=key)
-        content = obj["Body"].read().decode("utf-8")
-        fh = io.StringIO(content)
-        reader = csv.DictReader(fh)
-        for row in reader:
-            yield row
-        return
-    else:
-        if path is None:
-            path = Path(__file__).parent / "data" / agency / f"{gtfsFileName}.txt"
-        path = Path(path)
-        with path.open(newline="", encoding="utf-8") as fh:
+    base = Path(path) if path else Path(__file__).parent / "data"
+    agency_stem = Path(agency).stem
+    agency_name = agency_stem.split("_", 1)[0]
+    file_path = base / agency_name / f"{gtfsFileName}.txt"
+
+    # 1) try local file
+    if file_path.exists():
+        with file_path.open(newline="", encoding="utf-8") as fh:
             reader = csv.DictReader(fh)
             for row in reader:
                 yield row
+        return
+
+    # 2) try S3 under imports/{agency_name}/{gtfsFileName}.txt
+    s3_bucket = globals().get("_S3_BUCKET")
+    s3_key = f"imports/{agency_name}/{gtfsFileName}.txt"
+    if not s3_bucket:
+        raise FileNotFoundError(f"No such file or directory: {file_path} and no S3 bucket configured for {s3_key}")
+
+    s3 = boto3.client("s3")
+    try:
+        obj = s3.get_object(Bucket=s3_bucket, Key=s3_key)
+        body = obj["Body"].read().decode("utf-8")
+        fh = StringIO(body)
+        reader = csv.DictReader(fh)
+        for row in reader:
+            yield row
+    except botocore.exceptions.ClientError as e:
+        raise FileNotFoundError(f"No such file or directory in S3: s3://{s3_bucket}/{s3_key} ({e})")
+
 
 def get_id(agency, type, id, direction_id=None):
     if direction_id is not None:
@@ -205,6 +217,10 @@ def lambda_handler(event, context):
     # When a file is dropped into the triggers folder,
     # this function will be triggered, and will kick of the ingestion process.
     bucket, key, file_name = extract_s3_file_name(event)
+
+    # expose bucket globally so load_file can fetch GTFS from imports/{agency} in S3
+    global _S3_BUCKET
+    _S3_BUCKET = bucket
     
     #Trigger files are name AGENCY-NAME_DATE.txt
     agency = file_name.split("_")[0]

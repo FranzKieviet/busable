@@ -12,6 +12,9 @@ resource "aws_lambda_function" "dataloader" {
     runtime       = "python3.10"
 
     source_code_hash = data.archive_file.dataloader_lambda_zip.output_base64sha256
+
+    timeout     = 300
+    memory_size = 512
 }
 
 resource "aws_iam_role" "lambda_role" {

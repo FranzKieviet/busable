@@ -7,7 +7,7 @@ resource "aws_iam_role_policy" "ingestion_lambda_policy" {
     Statement = [
       {
         Effect = "Allow"
-        Action = ["s3:GetObject", "s3:HeadObject"]
+        Action = ["s3:GetObject", "s3:HeadObject", "s3:DeleteObject"]
         Resource = ["arn:aws:s3:::${aws_s3_bucket.ingestion_bucket.bucket}/imports/*"]
       },
       {

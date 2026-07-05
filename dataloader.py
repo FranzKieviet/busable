@@ -247,17 +247,30 @@ def extract_s3_file_name(event):
     file_name = os.path.basename(key)
     return bucket, key, file_name
 
-def lambda_handler(event, context):
-    # When a file is dropped into the triggers folder,
-    # this function will be triggered, and will kick of the ingestion process.
-    bucket, key, file_name = extract_s3_file_name(event)
+def delete_trigger_file(bucket, key):
+    s3 = boto3.client("s3")
+    try:
+        s3.delete_object(Bucket=bucket, Key=key)
+        print(f"Deleted trigger object s3://{bucket}/{key}")
+    except botocore.exceptions.ClientError as e:
+        print(f"Failed to delete trigger object s3://{bucket}/{key}: {e}")
 
-    # expose bucket globally so load_file can fetch GTFS from imports/{agency} in S3
-    global _S3_BUCKET
-    _S3_BUCKET = bucket
-    
-    #Trigger files are name AGENCY-NAME_DATE.txt
-    print(f"Processing file {file_name}")
-    agency = file_name.split("_")[0]
-    stops = process_stops(agency)
-    print(f"Processed {len(stops)} stops for agency {agency}")
+def lambda_handler(event, context):
+    try:
+        # When a file is dropped into the triggers folder,
+        # this function will be triggered, and will kick of the ingestion process.
+        bucket, key, file_name = extract_s3_file_name(event)
+
+        # expose bucket globally so load_file can fetch GTFS from imports/{agency} in S3
+        global _S3_BUCKET
+        _S3_BUCKET = bucket
+        
+        #Trigger files are name AGENCY-NAME_DATE.txt
+        print(f"Processing file {file_name}")
+        agency = file_name.split("_")[0]
+        stops = process_stops(agency)
+        delete_trigger_file(bucket, key)
+        print(f"Processed {len(stops)} stops for agency {agency}")
+    except Exception as e:
+        print(f"Error in lambda_handler: {e}")
+        raise

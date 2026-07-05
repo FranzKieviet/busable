@@ -1,5 +1,5 @@
 resource "aws_cloudwatch_event_rule" "files_uploaded_rule" {
-  name        = "GTFS Ingestion Files Uploaded Rule"
+  name        = "${local.project_prefix}-gtfs-ingestion-trigger-rule"
   description = "Trigger GTFS ingestion when files are uploaded to the S3 bucket"
 
   event_pattern = jsonencode({

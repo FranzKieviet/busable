@@ -9,7 +9,7 @@ resource "aws_lambda_function" "dataloader" {
     function_name = "dataloader"
     role          = aws_iam_role.lambda_role.arn
     handler       = "dataloader.lambda_handler"
-    runtime       = "python3.11"
+    runtime       = "python3.10"
 
     source_code_hash = data.archive_file.dataloader_lambda_zip.output_base64sha256
 }

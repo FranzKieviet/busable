@@ -1,7 +1,7 @@
 data "archive_file" "dataloader_lambda_zip" {
-    type        = "zip"
-    source_file = "${path.module}/dataloader.py"
-    output_path = "${path.module}/lambda_function.zip"
+  type        = "zip"
+  source_file = "${path.module}/../dataloader.py"
+  output_path = "${path.module}/lambda_function.zip"
 }
 
 resource "aws_lambda_function" "dataloader" {

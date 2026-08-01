@@ -1,5 +1,6 @@
 ﻿using Busable.Business.Objects;
 using Busable.Data.Interfaces;
+using Busable.Data.Utilities;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using MongoDB.Driver.GeoJsonObjectModel;
@@ -12,6 +13,7 @@ namespace Busable.Data.Repositories
         private const string DefaultCollectionName = "stops";
         private readonly IMongoDatabase _database;
         private readonly IMongoCollection<BsonDocument> _collection;
+        private const double DEFAULT_MAX_DISTANCE_M = 500;
 
         public BusStopRepository(IMongoDatabase database)
             : this(database, Environment.GetEnvironmentVariable("MONGO_COLLECTION_NAME") ?? DefaultCollectionName)
@@ -44,20 +46,18 @@ namespace Busable.Data.Repositories
             _collection = _database.GetCollection<BsonDocument>(effectiveCollectionName);
         }
 
-        public async Task<BusStop?> GetNearestAsync(double latitude, double longitude, double? maxDistanceKm)
+        public async Task<List<BusStop?>> GetNearestAsync(double latitude, double longitude, double? maxDistanceM)
         {
             var point = new GeoJsonPoint<GeoJson2DGeographicCoordinates>(
                 new GeoJson2DGeographicCoordinates(longitude, latitude));
 
-            var filter = maxDistanceKm.HasValue
-                ? Builders<BsonDocument>.Filter.Near("location", point, maxDistanceKm.Value * 1000)
-                : Builders<BsonDocument>.Filter.Near("location", point);
+            var filter = Builders<BsonDocument>.Filter.Near("location", point, maxDistanceM.Value);
 
-            var doc = await _collection.Find(filter).FirstOrDefaultAsync();
-            return doc is null ? null : MapDocument(doc);
+            var docs = await _collection.Find(filter).ToListAsync();
+            return docs?.Select(doc => MapDocument(doc, latitude, longitude)).ToList() ?? new List<BusStop?>();
         }
 
-        private static BusStop MapDocument(BsonDocument doc)
+        private static BusStop MapDocument(BsonDocument doc, double sourceLatitude, double sourceLongitude)
         {
             var id = doc.GetValue("_id", BsonValue.Create(string.Empty)).ToString();
             var name = doc.GetValue("stop_name",
@@ -96,7 +96,7 @@ namespace Busable.Data.Repositories
                     Latitude = latitude,
                     Longitude = longitude
                 },
-                DistanceKm = null
+                DistanceM = CoordinateCalculator.GetDistanceInMeters(sourceLatitude, sourceLongitude, latitude, longitude)
             };
         }
     }

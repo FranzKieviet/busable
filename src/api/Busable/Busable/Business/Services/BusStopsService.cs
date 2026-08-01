@@ -16,11 +16,11 @@ namespace Busable.Business.Services
 
         public async Task<NearestBusStopsResponse> GetNearestAsync(NearestBusStopsRequest request)
         {
-            var stop = await _repository.GetNearestAsync(request.Origin.Latitude, request.Origin.Longitude, request.MaxDistanceKm);
+            var stops = await _repository.GetNearestAsync(request.Origin.Latitude, request.Origin.Longitude, request.MaxDistanceM);
 
             return new NearestBusStopsResponse()
             {
-                BusStop = stop
+                BusStops = stops
             };
         }
     }

@@ -7,6 +7,6 @@ namespace Busable.Business.Objects
         public string Id { get; init; } = string.Empty;
         public string Name { get; init; } = string.Empty;
         public Location Location { get; init; }
-        public double? DistanceKm { get; init; }
+        public double? DistanceM { get; init; }
     }
 }

@@ -6,6 +6,6 @@ namespace Busable.Business.Objects
     {
         public Error? Error { get; set; }
 
-        public BusStop? BusStop { get; set; }
+        public List<BusStop?> BusStops { get; set; }
     }
 }

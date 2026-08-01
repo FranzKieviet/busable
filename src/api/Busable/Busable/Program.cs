@@ -108,6 +108,8 @@ static string? BuildMongoConnectionStringFromEnv()
         return $"mongodb://{Uri.EscapeDataString(envUser)}:{Uri.EscapeDataString(envPass)}@{envHost}/?authSource=admin";
     }
 
+    //If you get a ping error run this command: docker network connect scripts_default Busable
+
     return null;
 }
 

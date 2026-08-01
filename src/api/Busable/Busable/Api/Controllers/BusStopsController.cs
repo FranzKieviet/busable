@@ -1,7 +1,7 @@
-using Busable.Api.Models;
 using Busable.Business.Interfaces;
 using Busable.Business.Objects;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 using static Busable.Common.Objects.Objects;
 
 namespace Busable.Api.Controllers
@@ -24,24 +24,33 @@ namespace Busable.Api.Controllers
          ***/
 
         [HttpGet]
-        [Route("bus-stops/nearest-stop")]
-        public async Task<NearestBusStopsResponse> Get() //GetNearestStopRequest request)
+        [Route("bus-stops/nearest-stops")]
+        public async Task<ActionResult<NearestBusStopsResponse>> Get([FromQuery] double longitude, [FromQuery] double latitude, [FromQuery] int distance)
         {
+            var location = new Location { Longitude = longitude, Latitude = latitude };
 
-            var newRequest = new GetNearestStopRequest
+            var nearestBusStopsRequest = createRequest(location, distance);
+
+            // Explicitly run data annotations validation since the request is created manually
+            var validationResults = new List<ValidationResult>();
+            var context = new ValidationContext(nearestBusStopsRequest);
+            if (!Validator.TryValidateObject(nearestBusStopsRequest, context, validationResults, validateAllProperties: true))
             {
-                Origin = new Location { Longitude = -122.25902, Latitude = 37.86905 }
-            };
-            var nearestBusStopsRequest = createRequest(newRequest);
-            return await _service.GetNearestAsync(nearestBusStopsRequest);
+                // Return 400 with validation error messages
+                var errors = validationResults.Select(r => new { r.ErrorMessage, Members = r.MemberNames.ToArray() });
+                return BadRequest(new { Errors = errors });
+            }
+
+            var response = await _service.GetNearestAsync(nearestBusStopsRequest);
+            return Ok(response);
         }
 
-        private NearestBusStopsRequest createRequest(GetNearestStopRequest request)
+        private NearestBusStopsRequest createRequest(Location location, int distance)
         {
             return new NearestBusStopsRequest
             {
-                Origin = request.Origin,
-                MaxDistanceKm = request.MaxDistanceKm
+                Origin = location,
+                MaxDistanceM = distance == 0 ? 500 : distance
             };
         }
     }

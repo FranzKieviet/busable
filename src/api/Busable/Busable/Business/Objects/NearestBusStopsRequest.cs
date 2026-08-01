@@ -7,16 +7,22 @@ namespace Busable.Business.Objects
     {
         public required Location Origin { get; set; }
 
-        public int? MaxDistanceKm { get; set; } = 1;
+        public int MaxDistanceM { get; set; }
 
 
         public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
         {
             var errors = new List<ValidationResult>();
 
-            //Check if the given location is roughly in california
+            //Check if the given location is roughly in California
             if (!IsInCaliforniaBoundingBox(Origin.Latitude, Origin.Longitude))
                 errors.Add(new ValidationResult("The given location is not in California.", new[] { nameof(Origin) }));
+
+            if (MaxDistanceM <= 0)
+                errors.Add(new ValidationResult("MaxDistanceM must be greater than 0.", new[] { nameof(MaxDistanceM) }));
+
+            if (MaxDistanceM > 5000)
+                errors.Add(new ValidationResult("MaxDistanceM must be less than or equal to 5000.", new[] { nameof(MaxDistanceM) }));
 
             return errors;
         }

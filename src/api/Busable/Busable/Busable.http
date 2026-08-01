@@ -1,0 +1,6 @@
+@Busable_HostAddress = http://localhost:5255
+
+GET {{Busable_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -12,3 +12,44 @@ terraform.tfstate.backup
 # Ignore local CLI config
 .terraformrc
 terraform.rc
+
+# Visual Studio / IDE
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# .NET build artifacts
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+*.dll
+*.cache
+*.cache.json
+
+# Local app settings / secrets
+.env
+.env.*
+appsettings.Development.json
+secrets.json
+*.pfx
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Logs / temp files
+*.log
+*.tmp
+*.bak
+
+# Terraform local overrides
+*.tfvars.local
+*.auto.tfvars

@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: busable-local-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: devpassword
+    volumes:
+      - mongo-data:/data/db
+
+  busable:
+    image: busable:dev
+    container_name: Busable
+    depends_on:
+      - mongodb
+    restart: no
+    environment:
+      - MONGO_USER=admin
+      - MONGO_PASSWORD=devpassword
+      - MONGO_HOST=busable-local-mongo
+    # Optionally publish ports if you need to access the app from the host
+    # ports:
+    #   - "32768:8080"
+    #   - "32769:8081"
+
+volumes:
+  mongo-data:

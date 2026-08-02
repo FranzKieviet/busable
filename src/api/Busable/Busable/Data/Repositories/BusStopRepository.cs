@@ -87,6 +87,10 @@ namespace Busable.Data.Repositories
                 longitude = doc.GetValue("Longitude", doc.GetValue("longitude", BsonValue.Create(0.0))).ToDouble();
             }
 
+            var routes = doc.TryGetValue("routes_served", out var routesValue) && routesValue.IsBsonArray
+                ? routesValue.AsBsonArray.Select(r => r.ToString()).ToList()
+                : new List<string>();
+
             return new BusStop
             {
                 Id = id,
@@ -96,7 +100,8 @@ namespace Busable.Data.Repositories
                     Latitude = latitude,
                     Longitude = longitude
                 },
-                DistanceM = CoordinateCalculator.GetDistanceInMeters(sourceLatitude, sourceLongitude, latitude, longitude)
+                DistanceM = CoordinateCalculator.GetDistanceInMeters(sourceLatitude, sourceLongitude, latitude, longitude),
+                Routes = routes
             };
         }
     }

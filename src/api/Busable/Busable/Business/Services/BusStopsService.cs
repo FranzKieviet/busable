@@ -23,5 +23,40 @@ namespace Busable.Business.Services
                 BusStops = stops
             };
         }
+
+        public async Task<NearestBusStopsByLineResponse> GetNearestByLineAsync(NearestBusStopsRequest request)
+        {
+            var stops = await _repository.GetNearestAsync(request.Origin.Latitude, request.Origin.Longitude, request.MaxDistanceM);
+
+            HashSet<string> uniqueRoutes = new HashSet<string>();
+            HashSet<string> uniqueStops = new HashSet<string>();
+            var filteredStops = new List<BusStop?>();
+
+            foreach (var stop in stops)
+            {
+                //Since the list of stops is sorted by distance, we can just add the first stop for each unique route
+                if (stop?.Routes != null)
+                {
+                    foreach (var route in stop.Routes)
+                    {
+                        if (!uniqueRoutes.Contains(route))
+                        {
+                            uniqueRoutes.Add(route);
+                            if (!uniqueStops.Contains(stop.Id))
+                            {
+                                uniqueStops.Add(stop.Id);
+                                filteredStops.Add(stop);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return new NearestBusStopsByLineResponse()
+            {
+                BusStops = filteredStops,
+                UniqueRoutes = uniqueRoutes.ToList()
+            };
+        }
     }
 }

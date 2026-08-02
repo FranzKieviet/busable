@@ -25,7 +25,7 @@ namespace Busable.Api.Controllers
 
         [HttpGet]
         [Route("bus-stops/nearest-stops")]
-        public async Task<ActionResult<NearestBusStopsResponse>> Get([FromQuery] double longitude, [FromQuery] double latitude, [FromQuery] int distance)
+        public async Task<ActionResult<NearestBusStopsResponse>> GetNearestBusStops([FromQuery] double longitude, [FromQuery] double latitude, [FromQuery] int distance)
         {
             var location = new Location { Longitude = longitude, Latitude = latitude };
 
@@ -42,6 +42,28 @@ namespace Busable.Api.Controllers
             }
 
             var response = await _service.GetNearestAsync(nearestBusStopsRequest);
+            return Ok(response);
+        }
+
+        [HttpGet]
+        [Route("bus-stops/nearest-stops-by-line")]
+        public async Task<ActionResult<NearestBusStopsResponse>> GetNearestBusStopsByLine([FromQuery] double longitude, [FromQuery] double latitude, [FromQuery] int distance)
+        {
+            var location = new Location { Longitude = longitude, Latitude = latitude };
+
+            var nearestBusStopsRequest = createRequest(location, distance);
+
+            // Explicitly run data annotations validation since the request is created manually
+            var validationResults = new List<ValidationResult>();
+            var context = new ValidationContext(nearestBusStopsRequest);
+            if (!Validator.TryValidateObject(nearestBusStopsRequest, context, validationResults, validateAllProperties: true))
+            {
+                // Return 400 with validation error messages
+                var errors = validationResults.Select(r => new { r.ErrorMessage, Members = r.MemberNames.ToArray() });
+                return BadRequest(new { Errors = errors });
+            }
+
+            var response = await _service.GetNearestByLineAsync(nearestBusStopsRequest);
             return Ok(response);
         }
 

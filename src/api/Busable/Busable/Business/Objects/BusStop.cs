@@ -8,5 +8,6 @@ namespace Busable.Business.Objects
         public string Name { get; init; } = string.Empty;
         public Location Location { get; init; }
         public double? DistanceM { get; init; }
+        public List<string> Routes { get; init; } = new List<string>();
     }
 }

@@ -1,5 +1,6 @@
 ﻿using Busable.Business.Objects;
 using Busable.Data.Interfaces;
+using Busable.Data.Objects;
 using Busable.Data.Utilities;
 using MongoDB.Bson;
 using MongoDB.Driver;
@@ -10,26 +11,29 @@ namespace Busable.Data.Repositories
 {
     public class BusStopRepository : IBusStopsRepository
     {
-        private const string DefaultCollectionName = "stops";
+        private const string DefaultStopsCollectionName = "stops";
+        private const string DefaultRoutesCollectionName = "routes";
         private readonly IMongoDatabase _database;
-        private readonly IMongoCollection<BsonDocument> _collection;
-        private const double DEFAULT_MAX_DISTANCE_M = 500;
+        private readonly IMongoCollection<BsonDocument> _stopsCollection;
+        private readonly IMongoCollection<BsonDocument> _routesCollection;
 
         public BusStopRepository(IMongoDatabase database)
-            : this(database, Environment.GetEnvironmentVariable("MONGO_COLLECTION_NAME") ?? DefaultCollectionName)
+            : this(database, Environment.GetEnvironmentVariable("MONGO_STOPS_COLLECTION_NAME") ?? DefaultStopsCollectionName, Environment.GetEnvironmentVariable("MONGO_RouteS_COLLECTION_NAME") ?? DefaultRoutesCollectionName)
         {
         }
 
-        public BusStopRepository(IMongoDatabase database, string collectionName)
+        public BusStopRepository(IMongoDatabase database, string stopsCollectionName, string routesCollectionName)
         {
             _database = database ?? throw new ArgumentNullException(nameof(database));
-            if (string.IsNullOrWhiteSpace(collectionName))
-                throw new ArgumentException("Collection name must be provided.", nameof(collectionName));
-
-            _collection = _database.GetCollection<BsonDocument>(collectionName);
+            if (string.IsNullOrWhiteSpace(stopsCollectionName))
+                throw new ArgumentException("Stops collection name must be provided.", nameof(stopsCollectionName));
+            if (string.IsNullOrWhiteSpace(routesCollectionName))
+                throw new ArgumentException("Routes collection name must be provided.", nameof(routesCollectionName));
+            _stopsCollection = _database.GetCollection<BsonDocument>(stopsCollectionName);
+            _routesCollection = _database.GetCollection<BsonDocument>(routesCollectionName);
         }
 
-        public BusStopRepository(string connectionString, string databaseName, string? collectionName = null)
+        public BusStopRepository(string connectionString, string databaseName, string? stopsCollectionName = null, string? routesCollectionName = null)
         {
             if (string.IsNullOrWhiteSpace(connectionString))
                 throw new ArgumentException("MongoDB connection string must be provided.", nameof(connectionString));
@@ -39,11 +43,17 @@ namespace Busable.Data.Repositories
 
             var client = new MongoClient(connectionString);
             _database = client.GetDatabase(databaseName);
-            var effectiveCollectionName = string.IsNullOrWhiteSpace(collectionName)
-                ? Environment.GetEnvironmentVariable("MONGO_COLLECTION_NAME") ?? DefaultCollectionName
-                : collectionName;
+            var effectiveStopsCollectionName = string.IsNullOrWhiteSpace(stopsCollectionName)
+                ? Environment.GetEnvironmentVariable("MONGO_STOPS_COLLECTION_NAME") ?? DefaultStopsCollectionName
+                : stopsCollectionName;
 
-            _collection = _database.GetCollection<BsonDocument>(effectiveCollectionName);
+            _stopsCollection = _database.GetCollection<BsonDocument>(effectiveStopsCollectionName);
+
+            var effectiveRoutesCollectionName = string.IsNullOrWhiteSpace(routesCollectionName)
+                ? Environment.GetEnvironmentVariable("MONGO_ROUTES_COLLECTION_NAME") ?? DefaultRoutesCollectionName
+                : routesCollectionName;
+
+            _routesCollection = _database.GetCollection<BsonDocument>(effectiveRoutesCollectionName);
         }
 
         public async Task<List<BusStop?>> GetNearestAsync(double latitude, double longitude, double? maxDistanceM)
@@ -53,8 +63,41 @@ namespace Busable.Data.Repositories
 
             var filter = Builders<BsonDocument>.Filter.Near("location", point, maxDistanceM.Value);
 
-            var docs = await _collection.Find(filter).ToListAsync();
+            var docs = await _stopsCollection.Find(filter).ToListAsync();
             return docs?.Select(doc => MapDocument(doc, latitude, longitude)).ToList() ?? new List<BusStop?>();
+        }
+
+        public async Task<DownstreamRouteDbo> GetDownstreamStopsAsync(string targetRouteId, string originStopId)
+        {
+            var pipeline = new BsonDocument[]
+            {
+                // Stage 1: Match route ID
+                new BsonDocument("$match", new BsonDocument("_id", targetRouteId)),
+
+                // Stage 2: Calculate origin index
+                new BsonDocument("$addFields", new BsonDocument("originIdx",
+                    new BsonDocument("$indexOfArray", new BsonArray { "$ordered_stops.stop_id", originStopId }))),
+
+                // Stage 3: Slice downstream stops array
+                new BsonDocument("$project", new BsonDocument
+                {
+                    { "_id", 1 },
+                    { "route_short_name", 1 },
+                    { "downstream_stops", new BsonDocument("$slice", new BsonArray
+                        {
+                            "$ordered_stops",
+                            new BsonDocument("$add", new BsonArray { "$originIdx", 1 }),
+                            new BsonDocument("$size", "$ordered_stops")
+                        })
+                    }
+                })
+            };
+
+            var result = await _routesCollection
+                .Aggregate<DownstreamRouteDbo>(pipeline)
+                .FirstOrDefaultAsync();
+
+            return result;
         }
 
         private static BusStop MapDocument(BsonDocument doc, double sourceLatitude, double sourceLongitude)

@@ -34,11 +34,14 @@ builder.Services.AddSingleton<IMongoClient>(_ => new MongoClient(mongoConnection
 builder.Services.AddSingleton<IMongoDatabase>(sp => sp.GetRequiredService<IMongoClient>().GetDatabase(mongoDatabaseName));
 // Resolve collection name from environment variable if provided, otherwise use the
 // routing dataset collection used in your environment.
-var collectionName = Environment.GetEnvironmentVariable("MONGO_COLLECTION_NAME")
-    ?? "stops_ac-transit_20260713_130403";
+var stopsCollectionName = Environment.GetEnvironmentVariable("MONGO__STOPS_COLLECTION_NAME")
+    ?? "stops_ac-transit_20260801_175423";
+var routesCollectionName = Environment.GetEnvironmentVariable("MONGO__ROUTES_COLLECTION_NAME")
+    ?? "routes_ac-transit_20260801_175424";
+
 
 builder.Services.AddSingleton<IBusStopsRepository>(sp =>
-    new BusStopRepository(sp.GetRequiredService<IMongoDatabase>(), collectionName));
+    new BusStopRepository(sp.GetRequiredService<IMongoDatabase>(), stopsCollectionName, routesCollectionName));
 builder.Services.AddScoped<IBusStopsService, BusStopsService>();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi

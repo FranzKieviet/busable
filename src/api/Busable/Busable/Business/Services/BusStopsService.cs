@@ -52,11 +52,48 @@ namespace Busable.Business.Services
                 }
             }
 
+            await _repository.GetDownstreamStopsAsync("ac-transit_route_6_1", "ac-transit_stop_5598");
+
             return new NearestBusStopsByLineResponse()
             {
                 BusStops = filteredStops,
                 UniqueRoutes = uniqueRoutes.ToList()
             };
         }
+
+        public async Task<DownstreamRouteResponse> GetDownstreamBusStops(NearestBusStopsRequest request)
+        {
+            var getNearestByLineResponse = await GetNearestByLineAsync(request);
+            var uniqueStops = getNearestByLineResponse.BusStops;
+            var stops = await _repository.GetNearestAsync(request.Origin.Latitude, request.Origin.Longitude, request.MaxDistanceM);
+
+            HashSet<string> routesSeen = new HashSet<string>();
+            var response = new DownstreamRouteResponse();
+
+            foreach (var stop in uniqueStops)
+            {
+                if (stop != null && stop.Routes != null)
+                {
+                    foreach (var route in stop.Routes)
+                    {
+                        if (!routesSeen.Contains(route))
+                        {
+                            routesSeen.Add(route);
+                            var downstreamStopsDbo = await _repository.GetDownstreamStopsAsync(route, stop.Id);
+                            var mappedDownstream = downstreamStopsDbo?.DownstreamStops?
+                                .Select(d => new OrderedStop { StopId = d.StopId, TravelTimeSec = d.TravelTimeSec })
+                                .ToList() ?? new List<OrderedStop>();
+
+                            response.DownstreamStops[route] = mappedDownstream;
+                            response.RouteNames[route] = downstreamStopsDbo?.RouteShortName ?? string.Empty;
+                        }
+
+                    }
+                }
+            }
+
+            return response;
+        }
+
     }
 }

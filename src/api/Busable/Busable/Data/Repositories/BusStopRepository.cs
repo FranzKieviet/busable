@@ -16,6 +16,7 @@ namespace Busable.Data.Repositories
         private readonly IMongoDatabase _database;
         private readonly IMongoCollection<BsonDocument> _stopsCollection;
         private readonly IMongoCollection<BsonDocument> _routesCollection;
+        private const int MAX_TIME = 900; //15 mins in seconds
 
         public BusStopRepository(IMongoDatabase database)
             : this(database, Environment.GetEnvironmentVariable("MONGO_STOPS_COLLECTION_NAME") ?? DefaultStopsCollectionName, Environment.GetEnvironmentVariable("MONGO_RouteS_COLLECTION_NAME") ?? DefaultRoutesCollectionName)
@@ -72,25 +73,97 @@ namespace Busable.Data.Repositories
             var pipeline = new BsonDocument[]
             {
                 // Stage 1: Match route ID
-                new BsonDocument("$match", new BsonDocument("_id", targetRouteId)),
+                new BsonDocument("$match",
+                    new BsonDocument("_id", targetRouteId)),
 
-                // Stage 2: Calculate origin index
-                new BsonDocument("$addFields", new BsonDocument("originIdx",
-                    new BsonDocument("$indexOfArray", new BsonArray { "$ordered_stops.stop_id", originStopId }))),
-
-                // Stage 3: Slice downstream stops array
-                new BsonDocument("$project", new BsonDocument
+                // Stage 2: Calculate origin index and find matched stop
+                new BsonDocument("$addFields", new BsonDocument
                 {
-                    { "_id", 1 },
-                    { "route_short_name", 1 },
-                    { "downstream_stops", new BsonDocument("$slice", new BsonArray
-                        {
-                            "$ordered_stops",
-                            new BsonDocument("$add", new BsonArray { "$originIdx", 1 }),
-                            new BsonDocument("$size", "$ordered_stops")
-                        })
+                    {
+                        "originIdx",
+                        new BsonDocument("$indexOfArray",
+                            new BsonArray
+                            {
+                                "$ordered_stops.stop_id",
+                                originStopId
+                            })
+                    },
+                    {
+                        "matchedStop",
+                        new BsonDocument("$arrayElemAt",
+                            new BsonArray
+                            {
+                                new BsonDocument("$filter",
+                                    new BsonDocument
+                                    {
+                                        {
+                                            "input", "$ordered_stops"
+                                        },
+                                        {
+                                            "as", "stop"
+                                        },
+                                        {
+                                            "cond",
+                                            new BsonDocument("$eq",
+                                                new BsonArray
+                                                {
+                                                    "$$stop.stop_id",
+                                                    originStopId
+                                                })
+                                        }
+                                    }),
+                                0
+                            })
                     }
-                })
+                }),
+
+                // Stage 3: Slice downstream stops and filter by cumulative time
+                new BsonDocument("$project",
+                    new BsonDocument
+                    {
+                        { "_id", 1 },
+                        { "route_short_name", 1 },
+                        {
+                            "downstream_stops",
+                            new BsonDocument("$filter",
+                                new BsonDocument
+                                {
+                                    {
+                                        "input",
+                                        new BsonDocument("$slice",
+                                            new BsonArray
+                                            {
+                                                "$ordered_stops",
+                                                new BsonDocument("$add",
+                                                    new BsonArray
+                                                    {
+                                                        "$originIdx",
+                                                        1
+                                                    }),
+                                                new BsonDocument("$size",
+                                                    "$ordered_stops")
+                                            })
+                                    },
+                                    {
+                                        "as", "stop"
+                                    },
+                                    {
+                                        "cond",
+                                        new BsonDocument("$lte",
+                                            new BsonArray
+                                            {
+                                                "$$stop.cumulative_time_sec",
+                                                new BsonDocument("$add",
+                                                    new BsonArray
+                                                    {
+                                                        "$matchedStop.cumulative_time_sec",
+                                                        MAX_TIME
+                                                    })
+                                            })
+                                    }
+                                })
+                        }
+                    })
             };
 
             var result = await _routesCollection

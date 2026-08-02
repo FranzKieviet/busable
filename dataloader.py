@@ -155,6 +155,7 @@ def create_basic_stops(agency):
             "routes_served": [],
             "next_connections": []
         }
+    }
     """
     try:
         stops = {}
@@ -329,7 +330,7 @@ def upload_transit_data(data, collection_name: str):
             "location": {
                 "$near": {
                 "$geometry": {"type":"Point","coordinates":[-122.25902, 37.86905]},
-                "$maxDistance": 100
+                "$maxDistance": 50
                 }
             }
             })
@@ -345,13 +346,187 @@ def upload_transit_data(data, collection_name: str):
         # Clean up the connection pool
         client.close()
 
-# --- Example Usage ---
+def time_to_seconds(hms):
+    """Converts HH:MM:SS to total seconds."""
+    hours, minutes, seconds = map(int, hms.split(":"))
+    return hours * 3600 + minutes * 60 + seconds
+
+
+def get_agency_display_name(agency):
+    """Returns a human-friendly agency name for route documents."""
+    aliases = {
+        "ac-transit": "AC Transit"
+    }
+    return aliases.get(agency.lower(), agency.replace("-", " ").title())
+
+
+def get_direction_name(direction_id):
+    """Maps GTFS direction_id to a human-readable label."""
+    direction_id = str(direction_id)
+    if direction_id == "0":
+        return "Outbound"
+    if direction_id == "1":
+        return "Inbound"
+    return f"Direction {direction_id}"
+
+
+def process_route_documents(agency):
+    """
+    Creates route documents shaped like:
+    {
+        "_id": "ac-transit_route_W_0",
+        "agency": "AC Transit",
+        "route_short_name": "W",
+        "direction": "Outbound",
+        "ordered_stops": [
+            {"stop_id": "ac-transit_stop_3", "sequence": 0, "cumulative_time_sec": 0},
+            {"stop_id": "ac-transit_stop_6529", "sequence": 1, "cumulative_time_sec": 117}
+        ]
+    }
+    """
+    try:
+        route_metadata = process_routes(agency)
+        trip_rows = {}
+        for trip in load_file(agency=agency, gtfsFileName="trips", path=None):
+            trip_rows[trip["trip_id"]] = trip
+
+        trip_times = process_trip_times(agency, {trip_id: trip["route_id"] for trip_id, trip in trip_rows.items()})
+        route_docs = {}
+        seen_trip_paths = set()
+
+        for trip_id, trip_stops in trip_times.items():
+            if not trip_stops:
+                continue
+
+            trip = trip_rows.get(trip_id)
+            if not trip:
+                continue
+
+            route_id = trip["route_id"]
+            route_meta = route_metadata.get(route_id, {})
+            route_short_name = route_meta.get("route_short_name") or trip.get("trip_short_name") or route_id
+            direction_id = trip.get("direction_id", "0")
+            route_key = (route_id, str(direction_id))
+
+            if route_key in seen_trip_paths:
+                continue
+            seen_trip_paths.add(route_key)
+
+            first_stop_time = time_to_seconds(trip_stops[0]["arrival_time"])
+            ordered_stops = []
+            for sequence, stop in enumerate(trip_stops):
+                cumulative_time_sec = max(0, time_to_seconds(stop["arrival_time"]) - first_stop_time)
+                ordered_stops.append({
+                    "stop_id":  stop["stop_id"],
+                    "sequence": sequence,
+                    "cumulative_time_sec": cumulative_time_sec,
+                })
+
+            doc_id = f"{agency}_route_{route_short_name}_{direction_id}"
+            route_docs[doc_id] = {
+                "_id": doc_id,
+                "agency": get_agency_display_name(agency),
+                "route_short_name": route_short_name,
+                "direction": get_direction_name(direction_id),
+                "ordered_stops": ordered_stops,
+            }
+
+        print(f"Processed {len(route_docs)} route documents for agency {agency}")
+        return route_docs
+    except Exception as e:
+        print(f"Error processing route documents for agency {agency}: {e}")
+        return {}
+
+
+def upload_route_data(data, collection_name="routes"):
+    """Uploads route documents to the routes collection."""
+    return upload_transit_data(data=data, collection_name=collection_name)
+
+
+def print_route_stop_names(route_id, db_name=None, route_collection_names=None, stop_collection_names=None):
+    """
+    Prints the stop names in order for a route document such as:
+    ac-transit_route_6_0
+    """
+    connection_string = os.getenv(
+        "MONGO_CONNECTION_STRING",
+        "mongodb://admin:devpassword@localhost:27017/?authSource=admin"
+    )
+    db_name = db_name or os.getenv("MONGO_DATABASE_NAME", "busable_main")
+
+    client = MongoClient(connection_string)
+    try:
+        db = client[db_name]
+
+        if route_collection_names is None:
+            route_collection_names = [
+                name for name in db.list_collection_names()
+                if name.startswith("routes")
+            ] or ["routes"]
+
+        route_doc = None
+        for collection_name in route_collection_names:
+            route_doc = db[collection_name].find_one({"_id": route_id})
+            if route_doc:
+                break
+
+        if not route_doc:
+            print(f"No route found for {route_id} in database '{db_name}'")
+            return []
+
+        ordered_stops = route_doc.get("ordered_stops", [])
+        if not ordered_stops:
+            print(f"Route {route_id} has no ordered stops")
+            return []
+
+        stop_ids = [stop.get("stop_id") for stop in ordered_stops if stop.get("stop_id")]
+
+        if stop_collection_names is None:
+            stop_collection_names = [
+                name for name in db.list_collection_names()
+                if name.startswith("stops")
+            ] or ["stops"]
+
+        stop_name_by_id = {}
+        for collection_name in stop_collection_names:
+            stop_docs = list(db[collection_name].find(
+                {
+                    "$or": [
+                        {"_id": {"$in": stop_ids}},
+                        {"stop_id": {"$in": stop_ids}}
+                    ]
+                },
+                {"_id": 1, "stop_name": 1, "stop_id": 1}
+            ))
+            if stop_docs:
+                for stop_doc in stop_docs:
+                    stop_name_by_id[stop_doc.get("_id")] = stop_doc.get("stop_name", "Unknown stop")
+                    stop_name_by_id[stop_doc.get("stop_id")] = stop_doc.get("stop_name", "Unknown stop")
+                break
+
+        ordered_names = [
+            stop_name_by_id.get(stop.get("stop_id"), "Unknown stop")
+            for stop in ordered_stops
+            if stop.get("stop_id")
+        ]
+
+        print(f"Route {route_id} stop names:")
+        for index, stop_name in enumerate(ordered_names, start=1):
+            print(f"{index}. {stop_name}")
+
+        return ordered_names
+    finally:
+        client.close()
+
 if __name__ == "__main__":
     # Simulating your routing/stop dictionaries
     stops = list(process_stops(AGENCY).values())
-    
+    routes = list(process_route_documents(AGENCY).values())
+
     # Simulating your branch environment setup
     os.environ["MONGO_DATABASE_NAME"] = "busable_feat_routing"
-    
+
     # Run the upload
-    upload_transit_data(data=stops, collection_name="stops"+"_"+AGENCY+"_"+datetime.now().strftime("%Y%m%d_%H%M%S"))
+    upload_transit_data(data=stops, collection_name="stops" + "_" + AGENCY + "_" + datetime.now().strftime("%Y%m%d_%H%M%S"))
+    upload_route_data(data=routes, collection_name="routes" + "_" + AGENCY + "_" + datetime.now().strftime("%Y%m%d_%H%M%S"))
+    print_route_stop_names("ac-transit_route_6_0")

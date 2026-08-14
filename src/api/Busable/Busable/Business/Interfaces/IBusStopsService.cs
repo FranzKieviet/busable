@@ -10,16 +10,16 @@ namespace Busable.Business.Interfaces
         /// <summary>
         /// Get nearest bus stops.
         /// </summary>
-        Task<NearestBusStopsResponse> GetNearestAsync(NearestBusStopsRequest request);
+        Task<NearestBusStopsResponse> GetNearestAsync(Origin request);
 
         /// <summary>
         /// Get nearest bus stops that is unique per line
         /// </summary>
-        Task<NearestBusStopsByLineResponse> GetNearestByLineAsync(NearestBusStopsRequest request);
+        Task<NearestBusStopsByLineResponse> GetNearestByLineAsync(Origin request);
 
         /// <summary>
         /// Get downstream bus stops for the nearest bus stops
         /// </summary>
-        Task<DownstreamRouteResponse> GetDownstreamBusStops(NearestBusStopsRequest request);
+        Task<DownstreamRouteResponse> GetDownstreamBusStops(Origin request);
     }
 }

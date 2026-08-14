@@ -4,24 +4,16 @@ using Busable.Data.Objects;
 using Busable.Data.Utilities;
 using MongoDB.Bson;
 using MongoDB.Driver;
-using MongoDB.Driver.GeoJsonObjectModel;
-using static Busable.Common.Objects.Objects;
 
 namespace Busable.Data.Repositories
 {
     public class BusStopRepository : IBusStopsRepository
     {
-        private const string DefaultStopsCollectionName = "stops";
-        private const string DefaultRoutesCollectionName = "routes";
+        private QueryHelper _queryHelper;
         private readonly IMongoDatabase _database;
         private readonly IMongoCollection<BsonDocument> _stopsCollection;
         private readonly IMongoCollection<BsonDocument> _routesCollection;
         private const int MAX_TIME = 900; //15 mins in seconds
-
-        public BusStopRepository(IMongoDatabase database)
-            : this(database, Environment.GetEnvironmentVariable("MONGO_STOPS_COLLECTION_NAME") ?? DefaultStopsCollectionName, Environment.GetEnvironmentVariable("MONGO_RouteS_COLLECTION_NAME") ?? DefaultRoutesCollectionName)
-        {
-        }
 
         public BusStopRepository(IMongoDatabase database, string stopsCollectionName, string routesCollectionName)
         {
@@ -32,39 +24,12 @@ namespace Busable.Data.Repositories
                 throw new ArgumentException("Routes collection name must be provided.", nameof(routesCollectionName));
             _stopsCollection = _database.GetCollection<BsonDocument>(stopsCollectionName);
             _routesCollection = _database.GetCollection<BsonDocument>(routesCollectionName);
+            _queryHelper = new QueryHelper();
         }
 
-        public BusStopRepository(string connectionString, string databaseName, string? stopsCollectionName = null, string? routesCollectionName = null)
+        public async Task<List<BusStop?>> GetNearestBusStopAsync(double latitude, double longitude, double maxDistanceM)
         {
-            if (string.IsNullOrWhiteSpace(connectionString))
-                throw new ArgumentException("MongoDB connection string must be provided.", nameof(connectionString));
-
-            if (string.IsNullOrWhiteSpace(databaseName))
-                throw new ArgumentException("MongoDB database name must be provided.", nameof(databaseName));
-
-            var client = new MongoClient(connectionString);
-            _database = client.GetDatabase(databaseName);
-            var effectiveStopsCollectionName = string.IsNullOrWhiteSpace(stopsCollectionName)
-                ? Environment.GetEnvironmentVariable("MONGO_STOPS_COLLECTION_NAME") ?? DefaultStopsCollectionName
-                : stopsCollectionName;
-
-            _stopsCollection = _database.GetCollection<BsonDocument>(effectiveStopsCollectionName);
-
-            var effectiveRoutesCollectionName = string.IsNullOrWhiteSpace(routesCollectionName)
-                ? Environment.GetEnvironmentVariable("MONGO_ROUTES_COLLECTION_NAME") ?? DefaultRoutesCollectionName
-                : routesCollectionName;
-
-            _routesCollection = _database.GetCollection<BsonDocument>(effectiveRoutesCollectionName);
-        }
-
-        public async Task<List<BusStop?>> GetNearestAsync(double latitude, double longitude, double? maxDistanceM)
-        {
-            var point = new GeoJsonPoint<GeoJson2DGeographicCoordinates>(
-                new GeoJson2DGeographicCoordinates(longitude, latitude));
-
-            var filter = Builders<BsonDocument>.Filter.Near("location", point, maxDistanceM.Value);
-
-            var docs = await _stopsCollection.Find(filter).ToListAsync();
+            var docs = await _queryHelper.GetNearestAsync(_stopsCollection, latitude, longitude, maxDistanceM);
             return docs?.Select(doc => MapDocument(doc, latitude, longitude)).ToList() ?? new List<BusStop?>();
         }
 
@@ -211,11 +176,8 @@ namespace Busable.Data.Repositories
             {
                 Id = id,
                 Name = name,
-                Location = new Location
-                {
-                    Latitude = latitude,
-                    Longitude = longitude
-                },
+                Latitude = latitude,
+                Longitude = longitude,
                 DistanceM = CoordinateCalculator.GetDistanceInMeters(sourceLatitude, sourceLongitude, latitude, longitude),
                 Routes = routes
             };

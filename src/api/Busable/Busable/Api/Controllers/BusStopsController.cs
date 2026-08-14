@@ -2,7 +2,6 @@ using Busable.Business.Interfaces;
 using Busable.Business.Objects;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
-using static Busable.Common.Objects.Objects;
 
 namespace Busable.Api.Controllers
 {
@@ -27,9 +26,12 @@ namespace Busable.Api.Controllers
         [Route("bus-stops/nearest-stops")]
         public async Task<ActionResult<NearestBusStopsResponse>> GetNearestBusStops([FromQuery] double longitude, [FromQuery] double latitude, [FromQuery] int distance)
         {
-            var location = new Location { Longitude = longitude, Latitude = latitude };
-
-            var nearestBusStopsRequest = createRequest(location, distance);
+            var nearestBusStopsRequest = new Origin
+            {
+                Longitude = longitude,
+                Latitude = latitude,
+                MaxDistanceM = distance
+            };
 
             // Explicitly run data annotations validation since the request is created manually
             var validationResults = new List<ValidationResult>();
@@ -49,9 +51,12 @@ namespace Busable.Api.Controllers
         [Route("bus-stops/nearest-stops-by-line")]
         public async Task<ActionResult<NearestBusStopsResponse>> GetNearestBusStopsByLine([FromQuery] double longitude, [FromQuery] double latitude, [FromQuery] int distance)
         {
-            var location = new Location { Longitude = longitude, Latitude = latitude };
-
-            var nearestBusStopsRequest = createRequest(location, distance);
+            var nearestBusStopsRequest = new Origin
+            {
+                Longitude = longitude,
+                Latitude = latitude,
+                MaxDistanceM = distance
+            };
 
             // Explicitly run data annotations validation since the request is created manually
             var validationResults = new List<ValidationResult>();
@@ -72,9 +77,13 @@ namespace Busable.Api.Controllers
         [Route("bus-stops/downstream-stops-by-line")]
         public async Task<ActionResult<NearestBusStopsResponse>> GetDownstreamBusStopsByLine([FromQuery] double longitude, [FromQuery] double latitude, [FromQuery] int distance)
         {
-            var location = new Location { Longitude = longitude, Latitude = latitude };
 
-            var nearestBusStopsRequest = createRequest(location, distance);
+            var nearestBusStopsRequest = new Origin
+            {
+                Longitude = longitude,
+                Latitude = latitude,
+                MaxDistanceM = distance
+            };
 
             // Explicitly run data annotations validation since the request is created manually
             var validationResults = new List<ValidationResult>();
@@ -88,15 +97,6 @@ namespace Busable.Api.Controllers
 
             var response = await _service.GetDownstreamBusStops(nearestBusStopsRequest);
             return Ok(response);
-        }
-
-        private NearestBusStopsRequest createRequest(Location location, int distance)
-        {
-            return new NearestBusStopsRequest
-            {
-                Origin = location,
-                MaxDistanceM = distance == 0 ? 500 : distance
-            };
         }
     }
 }

@@ -38,11 +38,16 @@ var stopsCollectionName = Environment.GetEnvironmentVariable("MONGO__STOPS_COLLE
     ?? "stops_ac-transit_20260801_175423";
 var routesCollectionName = Environment.GetEnvironmentVariable("MONGO__ROUTES_COLLECTION_NAME")
     ?? "routes_ac-transit_20260801_175424";
+var placesCollectionName = Environment.GetEnvironmentVariable("MONGO__PLACES_COLLECTION_NAME")
+    ?? "places_20260813_193405";
 
 
 builder.Services.AddSingleton<IBusStopsRepository>(sp =>
     new BusStopRepository(sp.GetRequiredService<IMongoDatabase>(), stopsCollectionName, routesCollectionName));
+builder.Services.AddSingleton<IPlacesRepository>(sp =>
+    new PlacesRepository(sp.GetRequiredService<IMongoDatabase>(), placesCollectionName));
 builder.Services.AddScoped<IBusStopsService, BusStopsService>();
+builder.Services.AddScoped<IPlacesService, PlacesService>();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();

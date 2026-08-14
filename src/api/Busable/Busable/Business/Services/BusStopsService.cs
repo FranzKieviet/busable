@@ -13,10 +13,9 @@ namespace Busable.Business.Services
             _repository = repository ?? throw new ArgumentNullException(nameof(repository));
         }
 
-
-        public async Task<NearestBusStopsResponse> GetNearestAsync(NearestBusStopsRequest request)
+        public async Task<NearestBusStopsResponse> GetNearestAsync(Origin request)
         {
-            var stops = await _repository.GetNearestAsync(request.Origin.Latitude, request.Origin.Longitude, request.MaxDistanceM);
+            var stops = await _repository.GetNearestBusStopAsync(request.Latitude, request.Longitude, request.MaxDistanceM);
 
             return new NearestBusStopsResponse()
             {
@@ -24,9 +23,9 @@ namespace Busable.Business.Services
             };
         }
 
-        public async Task<NearestBusStopsByLineResponse> GetNearestByLineAsync(NearestBusStopsRequest request)
+        public async Task<NearestBusStopsByLineResponse> GetNearestByLineAsync(Origin request)
         {
-            var stops = await _repository.GetNearestAsync(request.Origin.Latitude, request.Origin.Longitude, request.MaxDistanceM);
+            var stops = await _repository.GetNearestBusStopAsync(request.Latitude, request.Longitude, request.MaxDistanceM);
 
             HashSet<string> uniqueRoutes = new HashSet<string>();
             HashSet<string> uniqueStops = new HashSet<string>();
@@ -61,11 +60,11 @@ namespace Busable.Business.Services
             };
         }
 
-        public async Task<DownstreamRouteResponse> GetDownstreamBusStops(NearestBusStopsRequest request)
+        public async Task<DownstreamRouteResponse> GetDownstreamBusStops(Origin request)
         {
             var getNearestByLineResponse = await GetNearestByLineAsync(request);
             var uniqueStops = getNearestByLineResponse.BusStops;
-            var stops = await _repository.GetNearestAsync(request.Origin.Latitude, request.Origin.Longitude, request.MaxDistanceM);
+            var stops = await _repository.GetNearestBusStopAsync(request.Latitude, request.Longitude, request.MaxDistanceM);
 
             HashSet<string> routesSeen = new HashSet<string>();
             var response = new DownstreamRouteResponse();

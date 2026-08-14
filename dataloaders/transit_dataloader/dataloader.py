@@ -1,19 +1,23 @@
 import csv
-from datetime import datetime
-from pathlib import Path
 import os
-from datetime import datetime
+import sys
 import urllib.parse
-import boto3
+from datetime import datetime
 from io import StringIO
+from pathlib import Path
+
+import boto3
 import botocore
-import os
-import pymongo
-from pymongo import MongoClient
-from pymongo.errors import BulkWriteError
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from dataloaders.lib.mongodb import upload_data
 
 ### For local testing: 
 AGENCY = "ac-transit"
+
 ### Place GTFS files in a folder called "data" in the same directory as this script
 
 def load_file(agency, gtfsFileName, path=None):
@@ -282,70 +286,6 @@ def lambda_handler(event, context):
         print(f"Error in lambda_handler: {e}")
         raise
 
-def upload_transit_data(data, collection_name: str):
-    """
-    Uploads a list of dictionaries to the local MongoDB instance.
-    Uses environment variables to dynamically switch databases based on your branch.
-    """
-    if isinstance(data, dict):
-        data = list(data.values())
-
-    if not data:
-        print("No data provided to upload.")
-        return
-
-    if not isinstance(data, (list, tuple)):
-        raise TypeError("upload_transit_data expects a list of documents or a dict mapping IDs to documents")
-
-    if isinstance(data, (list, tuple)) and data and not isinstance(data[0], dict):
-        raise TypeError("upload_transit_data expects each item in the list to be a document dict")
-
-    # 1. Pull connection info from environment, or fall back to your Docker defaults
-    connection_string = os.getenv(
-        "MONGO_CONNECTION_STRING", 
-        "mongodb://admin:devpassword@localhost:27017/?authSource=admin"
-    )
-    # This defaults to busable_main, but changes when you swap branch env vars!
-    db_name = os.getenv("MONGO_DATABASE_NAME", "busable_main")
-
-    try:
-        # 2. Connect to the MongoDB client
-        client = MongoClient(connection_string)
-        db = client[db_name]
-        collection = db[collection_name]
-
-        print(f"Connecting to database: '{db_name}' -> Collection: '{collection_name}'...")
-
-        # 3. Use insert_many for high-performance bulk operations (great for GTFS data)
-        result = collection.insert_many(data)
-        # Create geospatial index on the `location` field if present
-        try:
-            collection.create_index([("location", pymongo.GEOSPHERE)])
-        except Exception as ie:
-            print(f"Failed to create geospatial index on {collection_name}: {ie}")
-
-        print(f"Successfully uploaded {len(result.inserted_ids)} documents to {db_name}.{collection_name}!")
-        
-        doc = collection.find_one({
-            "location": {
-                "$near": {
-                "$geometry": {"type":"Point","coordinates":[-122.25902, 37.86905]},
-                "$maxDistance": 50
-                }
-            }
-            })
-        print(f"Sample document found near (37.86905, -122.25902): {doc}")
-        return result.inserted_ids
-
-    except BulkWriteError as bwe:
-        # Crucial for data seeding: handles issues if you have duplicate IDs
-        print(f"A bulk write error occurred. Details: {bwe.details}")
-    except Exception as e:
-        print(f"An unexpected error occurred while uploading to MongoDB: {e}")
-    finally:
-        # Clean up the connection pool
-        client.close()
-
 def time_to_seconds(hms):
     """Converts HH:MM:SS to total seconds."""
     hours, minutes, seconds = map(int, hms.split(":"))
@@ -438,95 +378,15 @@ def process_route_documents(agency):
         return {}
 
 
-def upload_route_data(data, collection_name="routes"):
-    """Uploads route documents to the routes collection."""
-    return upload_transit_data(data=data, collection_name=collection_name)
-
-
-def print_route_stop_names(route_id, db_name=None, route_collection_names=None, stop_collection_names=None):
-    """
-    Prints the stop names in order for a route document such as:
-    ac-transit_route_6_0
-    """
-    connection_string = os.getenv(
-        "MONGO_CONNECTION_STRING",
-        "mongodb://admin:devpassword@localhost:27017/?authSource=admin"
-    )
-    db_name = db_name or os.getenv("MONGO_DATABASE_NAME", "busable_main")
-
-    client = MongoClient(connection_string)
-    try:
-        db = client[db_name]
-
-        if route_collection_names is None:
-            route_collection_names = [
-                name for name in db.list_collection_names()
-                if name.startswith("routes")
-            ] or ["routes"]
-
-        route_doc = None
-        for collection_name in route_collection_names:
-            route_doc = db[collection_name].find_one({"_id": route_id})
-            if route_doc:
-                break
-
-        if not route_doc:
-            print(f"No route found for {route_id} in database '{db_name}'")
-            return []
-
-        ordered_stops = route_doc.get("ordered_stops", [])
-        if not ordered_stops:
-            print(f"Route {route_id} has no ordered stops")
-            return []
-
-        stop_ids = [stop.get("stop_id") for stop in ordered_stops if stop.get("stop_id")]
-
-        if stop_collection_names is None:
-            stop_collection_names = [
-                name for name in db.list_collection_names()
-                if name.startswith("stops")
-            ] or ["stops"]
-
-        stop_name_by_id = {}
-        for collection_name in stop_collection_names:
-            stop_docs = list(db[collection_name].find(
-                {
-                    "$or": [
-                        {"_id": {"$in": stop_ids}},
-                        {"stop_id": {"$in": stop_ids}}
-                    ]
-                },
-                {"_id": 1, "stop_name": 1, "stop_id": 1}
-            ))
-            if stop_docs:
-                for stop_doc in stop_docs:
-                    stop_name_by_id[stop_doc.get("_id")] = stop_doc.get("stop_name", "Unknown stop")
-                    stop_name_by_id[stop_doc.get("stop_id")] = stop_doc.get("stop_name", "Unknown stop")
-                break
-
-        ordered_names = [
-            stop_name_by_id.get(stop.get("stop_id"), "Unknown stop")
-            for stop in ordered_stops
-            if stop.get("stop_id")
-        ]
-
-        print(f"Route {route_id} stop names:")
-        for index, stop_name in enumerate(ordered_names, start=1):
-            print(f"{index}. {stop_name}")
-
-        return ordered_names
-    finally:
-        client.close()
-
 if __name__ == "__main__":
+    #Create new data version:
+    data_version = datetime.now().strftime("%Y%m%d_%H%M%S")
+
     # Simulating your routing/stop dictionaries
     stops = list(process_stops(AGENCY).values())
     routes = list(process_route_documents(AGENCY).values())
 
-    # Simulating your branch environment setup
-    os.environ["MONGO_DATABASE_NAME"] = "busable_feat_routing"
-
     # Run the upload
-    upload_transit_data(data=stops, collection_name="stops" + "_" + AGENCY + "_" + datetime.now().strftime("%Y%m%d_%H%M%S"))
-    upload_route_data(data=routes, collection_name="routes" + "_" + AGENCY + "_" + datetime.now().strftime("%Y%m%d_%H%M%S"))
-    print_route_stop_names("ac-transit_route_6_0")
+    upload_data(data=stops, collection_name="stops" + "_" + AGENCY + "_" + data_version)
+    upload_data(data=routes, collection_name="routes" + "_" + AGENCY + "_" + data_version)
+

@@ -1,0 +1,282 @@
+[
+  {
+    "id": null,
+    "name": "Cancun Sabor Mexicano",
+    "category": "mexican_restaurant",
+    "brand": null,
+    "popularity_score": 100.0,
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        -122.26685687,
+        37.86947898
+      ]
+    }
+  },
+  {
+    "id": null,
+    "name": "Agrodolce Osteria",
+    "category": "italian_restaurant",
+    "brand": null,
+    "popularity_score": 100.0,
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        -122.26899528,
+        37.87599051
+      ]
+    }
+  },
+  {
+    "id": null,
+    "name": "Kip's",
+    "category": "bar_and_grill_restaurant",
+    "brand": null,
+    "popularity_score": 99.99,
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        -122.25957246,
+        37.86789687
+      ]
+    }
+  },
+  {
+    "id": null,
+    "name": "Morrison Library",
+    "category": "library",
+    "brand": null,
+    "popularity_score": 99.94,
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        -122.25956331,
+        37.87218311
+      ]
+    }
+  },
+  {
+    "id": null,
+    "name": "Taste of the Himalayas",
+    "category": "indian_restaurant",
+    "brand": null,
+    "popularity_score": 99.86,
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        -122.2691992,
+        37.87650116
+      ]
+    }
+  },
+  {
+    "id": null,
+    "name": "Dumpling Express",
+    "category": "chinese_restaurant",
+    "brand": null,
+    "popularity_score": 99.85,
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        -122.25677419,
+        37.86784878
+      ]
+    }
+  },
+  {
+    "id": null,
+    "name": "Angeline's Louisiana Kitchen",
+    "category": "cajun_and_creole_restaurant",
+    "brand": null,
+    "popularity_score": 99.84,
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        -122.26765018,
+        37.86825957
+      ]
+    }
+  },
+  {
+    "id": null,
+    "name": "Mount Everest Restaurant",
+    "category": "indian_restaurant",
+    "brand": null,
+    "popularity_score": 99.82,
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        -122.25886122,
+        37.86333567
+      ]
+    }
+  },
+  {
+    "id": null,
+    "name": "Zino",
+    "category": "mediterranean_restaurant",
+    "brand": "ZINO",
+    "popularity_score": 99.81,
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        -122.26834606,
+        37.86926059
+      ]
+    }
+  },
+  {
+    "id": null,
+    "name": "Julia's Restaurant",
+    "category": "french_restaurant",
+    "brand": null,
+    "popularity_score": 99.79,
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        -122.2627934,
+        37.86749483
+      ]
+    }
+  },
+  {
+    "id": null,
+    "name": "La Note",
+    "category": "french_restaurant",
+    "brand": null,
+    "popularity_score": 99.72,
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        -122.2673327,
+        37.86620387
+      ]
+    }
+  },
+  {
+    "id": null,
+    "name": "Itani Sushi - Berkeley",
+    "category": "sushi_restaurant",
+    "brand": null,
+    "popularity_score": 99.71,
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        -122.26908387,
+        37.87980318
+      ]
+    }
+  },
+  {
+    "id": null,
+    "name": "Tigerlily Berkeley",
+    "category": "indian_restaurant",
+    "brand": null,
+    "popularity_score": 99.71,
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        -122.26908585,
+        37.87978764
+      ]
+    }
+  },
+  {
+    "id": null,
+    "name": "JotMahal Palace of Indian Cuisine",
+    "category": "indian_restaurant",
+    "brand": null,
+    "popularity_score": 99.71,
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        -122.268879,
+        37.878785
+      ]
+    }
+  },
+  {
+    "id": null,
+    "name": "Farmhouse Kitchen Thai Cuisine",
+    "category": "thai_restaurant",
+    "brand": "Farmhouse Kitchen Thai Cuisine",
+    "popularity_score": 99.71,
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        -122.26875543594362,
+        37.878621933381076
+      ]
+    }
+  },
+  {
+    "id": null,
+    "name": "Gregoire Restaurant",
+    "category": "french_restaurant",
+    "brand": null,
+    "popularity_score": 99.71,
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        -122.26860142,
+        37.87858897
+      ]
+    }
+  },
+  {
+    "id": null,
+    "name": "The Walnut Tavern Bar & Grill",
+    "category": "restaurant",
+    "brand": null,
+    "popularity_score": 99.71,
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        -122.26831266,
+        37.8799949
+      ]
+    }
+  },
+  {
+    "id": null,
+    "name": "Peet's Coffee",
+    "category": "coffee_shop",
+    "brand": "Peet's Coffee",
+    "popularity_score": 99.71,
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        -122.26829794,
+        37.88025679
+      ]
+    }
+  },
+  {
+    "id": null,
+    "name": "Thai Basil",
+    "category": "thai_restaurant",
+    "brand": "Thai\u2022Thai",
+    "popularity_score": 99.71,
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        -122.25804403,
+        37.86816267
+      ]
+    }
+  },
+  {
+    "id": null,
+    "name": "Steve's Korean Barbecue",
+    "category": "korean_restaurant",
+    "brand": null,
+    "popularity_score": 99.71,
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        -122.25802255,
+        37.86815564
+      ]
+    }
+  }
+]

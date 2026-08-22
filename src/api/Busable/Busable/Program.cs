@@ -16,9 +16,9 @@ builder.Services.AddControllers();
 // 2. MONGO_CONNECTION env var (full connection string)
 // 3. MONGO_USER, MONGO_PASSWORD, MONGO_HOST env vars (built URI)
 // 4. Fallback to localhost host without auth for local development
-var mongoConnectionString = builder.Configuration.GetValue<string>("Mongo:ConnectionString")
+var mongoConnectionString = builder.Configuration.GetConnectionString("MongoDb")
+    ?? builder.Configuration["Mongo:ConnectionString"]
     ?? Environment.GetEnvironmentVariable("MONGO_CONNECTION")
-    ?? BuildMongoConnectionStringFromEnv()
     ?? "mongodb://busable-local-mongo:27017";
 
 mongoConnectionString = mongoConnectionString?.Trim() ?? throw new InvalidOperationException("Mongo connection string is null or empty.");
@@ -35,9 +35,9 @@ builder.Services.AddSingleton<IMongoDatabase>(sp => sp.GetRequiredService<IMongo
 // Resolve collection name from environment variable if provided, otherwise use the
 // routing dataset collection used in your environment.
 var stopsCollectionName = Environment.GetEnvironmentVariable("MONGO__STOPS_COLLECTION_NAME")
-    ?? "stops_ac-transit_20260801_175423";
+    ?? "stops_ac-transit_20260816_213922";
 var routesCollectionName = Environment.GetEnvironmentVariable("MONGO__ROUTES_COLLECTION_NAME")
-    ?? "routes_ac-transit_20260801_175424";
+    ?? "routes_ac-transit_20260816_213922";
 var placesCollectionName = Environment.GetEnvironmentVariable("MONGO__PLACES_COLLECTION_NAME")
     ?? "places_20260813_193405";
 

@@ -65,18 +65,22 @@ resource "aws_ecs_task_definition" "busable_api" {
 
       environment = [
         {
-          name  = "ConnectionStrings__MongoDb"
-          value = var.mongodb_uri
+            name  = "Mongo__ConnectionString"
+            value = var.mongodb_uri
         },
         {
-          name  = "ASPNETCORE_ENVIRONMENT"
-          value = "Production"
+            name  = "Mongo__DatabaseName"
+            value = "busable_${var.branch}"
         },
         {
-          name  = "ASPNETCORE_URLS"
-          value = "http://+:8080"
+            name  = "ASPNETCORE_ENVIRONMENT"
+            value = "Production"
+        },
+        {
+            name  = "ASPNETCORE_URLS"
+            value = "http://+:8080"
         }
-      ]
+    ]
 
       logConfiguration = {
         logDriver = "awslogs"

@@ -17,12 +17,12 @@ resource "aws_security_group" "ecs_api_sg" {
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
-    description = "Allow inbound HTTP to API"
-    from_port   = 8080
-    to_port     = 8080
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+    description     = "Allow inbound HTTP from ALB"
+    from_port       = 8080
+    to_port         = 8080
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb_sg.id]
+}
 
   egress {
     description = "Allow all outbound traffic (MongoDB, ECR, internet)"
@@ -104,9 +104,16 @@ resource "aws_ecs_service" "busable_api" {
     assign_public_ip = true
   }
 
-  depends_on = [
-    aws_iam_role_policy_attachment.ecs_execution_role_policy
-  ]
+  load_balancer {
+  target_group_arn = aws_lb_target_group.busable_api.arn
+  container_name   = "busable-api"
+  container_port   = 8080
+}
+
+depends_on = [
+  aws_iam_role_policy_attachment.ecs_execution_role_policy,
+  aws_lb_listener.http
+]
 }
 
 # --- CloudWatch Log Group ---

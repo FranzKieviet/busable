@@ -7,3 +7,7 @@ output "bucket_arn" {
   description = "GTFS Ingestion Bucket ARN"
   value       = aws_s3_bucket.ingestion_bucket.arn
 }
+
+output "alb_url" {
+  value = "http://${aws_lb.busable_api.dns_name}"
+}

@@ -24,8 +24,8 @@ resource "aws_iam_role_policy" "ingestion_lambda_policy" {
   })
 }
 
-resource "aws_iam_role" "apprunner_ecr_access" {
-  name = "busable-apprunner-ecr-role-${var.branch}"
+resource "aws_iam_role" "ecs_execution_role" {
+  name = "busable-ecs-execution-role-${var.branch}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -34,14 +34,14 @@ resource "aws_iam_role" "apprunner_ecr_access" {
         Action = "sts:AssumeRole"
         Effect = "Allow"
         Principal = {
-          Service = "build.apprunner.amazonaws.com"
+          Service = "ecs-tasks.amazonaws.com"
         }
       }
     ]
   })
 }
 
-resource "aws_iam_role_policy_attachment" "apprunner_ecr_access_attachment" {
-  role       = aws_iam_role.apprunner_ecr_access.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess"
+resource "aws_iam_role_policy_attachment" "ecs_execution_role_policy" {
+  role       = aws_iam_role.ecs_execution_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }

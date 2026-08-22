@@ -47,13 +47,13 @@ jobs:
       - name: Extract branch and compute prefix
         id: branch_info
         run: |
-            BRANCH="${{ inputs.branch }}"
-            if [ -z "$BRANCH" ]; then
-              BRANCH="${{ github.ref_name }}"
-            fi
-            STACK=$(echo "$BRANCH" | cut -c1 | tr '[:upper:]' '[:lower:]')
-            echo "BRANCH=$BRANCH" >> $GITHUB_OUTPUT
-            echo "STACK=$STACK" >> $GITHUB_OUTPUT
+          BRANCH="${{ inputs.branch }}"
+          if [ -z "$BRANCH" ]; then
+            BRANCH="${{ github.ref_name }}"
+          fi
+          STACK=$(echo "$BRANCH" | cut -c1 | tr '[:upper:]' '[:lower:]')
+          echo "BRANCH=$BRANCH" >> $GITHUB_OUTPUT
+          echo "STACK=$STACK" >> $GITHUB_OUTPUT
 
       - name: Terraform init
         run: terraform init -backend-config="key=${{ inputs.project }}/${{ steps.branch_info.outputs.BRANCH }}/terraform.tfstate"
@@ -63,6 +63,8 @@ jobs:
 
       # STEP 1: Provision ECR repository first so Docker has a destination target
       - name: Provision ECR Repo
+        env:
+          TF_VAR_mongodb_uri: ${{ secrets.MONGODB_URI }}
         run: terraform apply -auto-approve -input=false -target=aws_ecr_repository.busable_api -var-file=tfvars/master.tfvars -var="branch=${{ steps.branch_info.outputs.STACK }}"
 
       # STEP 2: Log in to ECR
@@ -70,7 +72,7 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # STEP 3: Set up Docker Buildx (Ensures x86_64 image target for App Runner)
+      # STEP 3: Set up Docker Buildx (Ensures x86_64 image target for Fargate / App Runner)
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 

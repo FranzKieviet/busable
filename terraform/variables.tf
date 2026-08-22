@@ -10,10 +10,18 @@ variable "environment" {
   default     = "dev"
 }
 
-variable "project_name"{
-    type = string
+variable "project_name" {
+  type        = string
+  description = "Project name"
 }
 
-variable "branch"{
-    type = string
+variable "branch" {
+  type        = string
+  description = "Branch letter"
+}
+
+variable "mongodb_uri" {
+  type        = string
+  description = "MongoDB Connection String"
+  sensitive   = true
 }

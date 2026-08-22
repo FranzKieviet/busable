@@ -1,13 +1,102 @@
-name: Infra
+name: Terraform Infra
 
 on:
-  push:
-    branches: ["*"]
+  workflow_call:
+    inputs:
+      working-directory:
+        required: false
+        type: string
+        default: "."
+      project:
+        required: true
+        type: string
+      branch:
+        required: true
+        type: string
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      MONGODB_URI:
+        required: true
 
 jobs:
   terraform:
-    uses: franzkieviet/infra/.github/workflows/infra.yml@master
-    with:
-        branch: ${{ github.ref_name }}
-        project: "busable"
-    secrets: inherit
+    runs-on: ubuntu-latest
+
+    env:
+      TF_LOG: debug
+      TF_VAR_mongodb_uri: ${{ secrets.MONGODB_URI }}
+
+    defaults:
+      run:
+        working-directory: terraform
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Extract branch and compute prefix
+        id: branch_info
+        run: |
+            BRANCH="${{ inputs.branch }}"
+            if [ -z "$BRANCH" ]; then
+              BRANCH="${{ github.ref_name }}"
+            fi
+            STACK=$(echo "$BRANCH" | cut -c1 | tr '[:upper:]' '[:lower:]')
+            echo "BRANCH=$BRANCH" >> $GITHUB_OUTPUT
+            echo "STACK=$STACK" >> $GITHUB_OUTPUT
+
+      - name: Terraform init
+        run: terraform init -backend-config="key=${{ inputs.project }}/${{ steps.branch_info.outputs.BRANCH }}/terraform.tfstate"
+      
+      - name: Terraform validate
+        run: terraform validate
+
+      # STEP 1: Provision ECR repository first so Docker has a destination target
+      - name: Provision ECR Repo
+        run: terraform apply -auto-approve -input=false -target=aws_ecr_repository.busable_api -var-file=tfvars/master.tfvars -var="branch=${{ steps.branch_info.outputs.STACK }}"
+
+      # STEP 2: Log in to ECR
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # STEP 3: Set up Docker Buildx (Ensures x86_64 image target for App Runner)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # STEP 4: Build and Push Docker Image to ECR
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./src/api/Busable
+          file: ./src/api/Busable/Busable/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.login-ecr.outputs.registry }}/busable-api:latest
+
+      # STEP 5: Run full Terraform Plan & Apply
+      - name: Terraform Plan (Prod)
+        if: steps.branch_info.outputs.BRANCH == 'master'
+        run: terraform plan -input=false -var-file=tfvars/master.tfvars -var-file=tfvars/prod.tfvars
+      
+      - name: Terraform Plan (Non-Prod)
+        if: steps.branch_info.outputs.BRANCH != 'master'
+        run: terraform plan -input=false -var-file=tfvars/master.tfvars -var-file=tfvars/nonprod.tfvars -var="branch=${{ steps.branch_info.outputs.STACK }}"
+
+      - name: Apply (Prod)
+        if: steps.branch_info.outputs.BRANCH == 'master'
+        run: terraform apply -auto-approve -input=false -var-file=tfvars/master.tfvars -var-file=tfvars/prod.tfvars
+      
+      - name: Apply (Non-Prod)
+        if: steps.branch_info.outputs.BRANCH != 'master'
+        run: terraform apply -auto-approve -input=false -var-file=tfvars/master.tfvars -var-file=tfvars/nonprod.tfvars -var="branch=${{ steps.branch_info.outputs.STACK }}"

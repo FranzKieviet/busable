@@ -377,8 +377,7 @@ def process_route_documents(agency):
         print(f"Error processing route documents for agency {agency}: {e}")
         return {}
 
-
-if __name__ == "__main__":
+def main():
     #Create new data version:
     data_version = datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -389,4 +388,7 @@ if __name__ == "__main__":
     # Run the upload
     upload_data(data=stops, collection_name="stops" + "_" + AGENCY + "_" + data_version)
     upload_data(data=routes, collection_name="routes" + "_" + AGENCY + "_" + data_version)
+    
+if __name__ == "__main__":
+    main()
 

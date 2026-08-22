@@ -1,0 +1,14 @@
+name: Deploy Pipeline
+
+on:
+  push:
+    branches:
+      - '**' 
+
+jobs:
+  run-infra:
+    uses: ./.github/workflows/infra.yml
+    with:
+      project: "busable"
+      branch: ${{ github.ref_name }}
+    secrets: inherit

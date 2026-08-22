@@ -23,3 +23,25 @@ resource "aws_iam_role_policy" "ingestion_lambda_policy" {
     ]
   })
 }
+
+resource "aws_iam_role" "apprunner_ecr_access" {
+  name = "busable-apprunner-ecr-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "build.apprunner.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "apprunner_ecr_access_attachment" {
+  role       = aws_iam_role.apprunner_ecr_access.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess"
+}

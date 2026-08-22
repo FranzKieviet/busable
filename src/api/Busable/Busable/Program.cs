@@ -52,7 +52,11 @@ builder.Services.AddScoped<IPlacesService, PlacesService>();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+builder.Services.AddHealthChecks();
+
 var app = builder.Build();
+
+app.MapHealthChecks("/health");
 
 // Verify MongoDB connectivity at startup to fail fast and log a helpful message.
 var logger = app.Services.GetRequiredService<ILogger<Program>>();

@@ -58,58 +58,6 @@ var app = builder.Build();
 
 app.MapHealthChecks("/health");
 
-// Verify MongoDB connectivity at startup to fail fast and log a helpful message.
-var logger = app.Services.GetRequiredService<ILogger<Program>>();
-try
-{
-    // Allow overriding connection details via environment variables for containers.
-    // Priority:
-    // 1. MONGO_CONNECTION - full connection string (e.g. mongodb://user:pass@host:27017/?authSource=admin)
-    // 2. MONGO_USER, MONGO_PASSWORD, MONGO_HOST (build connection string and use authSource=admin)
-    // 3. fallback to the IMongoClient registered in DI (existing behavior)
-
-    var envConn = Environment.GetEnvironmentVariable("MONGO_CONNECTION");
-    if (!string.IsNullOrWhiteSpace(envConn))
-    {
-        client = new MongoClient(envConn);
-        logger.LogInformation("Using MongoDB connection from MONGO_CONNECTION env var.");
-    }
-    else
-    {
-        var envUser = Environment.GetEnvironmentVariable("MONGO_USER");
-        var envPass = Environment.GetEnvironmentVariable("MONGO_PASSWORD");
-        var envHost = Environment.GetEnvironmentVariable("MONGO_HOST");
-
-        if (!string.IsNullOrWhiteSpace(envUser) && !string.IsNullOrWhiteSpace(envPass) && !string.IsNullOrWhiteSpace(envHost))
-        {
-            var built = $"mongodb://{Uri.EscapeDataString(envUser)}:{Uri.EscapeDataString(envPass)}@{envHost}/?authSource=admin";
-            client = new MongoClient(built);
-            logger.LogInformation("Using MongoDB connection from MONGO_USER/MONGO_PASSWORD/MONGO_HOST env vars.");
-        }
-        else
-        {
-            // Fall back to the registered client from DI
-            client = app.Services.GetRequiredService<IMongoClient>() as MongoClient ?? new MongoClient(mongoConnectionString);
-            logger.LogInformation("Using MongoDB client from DI or configured connection string.");
-        }
-    }
-
-    var db = client.GetDatabase(mongoDatabaseName);
-
-    // Ping the server; this will throw if the server is unreachable or auth fails.
-    db.RunCommand<BsonDocument>(new BsonDocument("ping", 1));
-
-    logger.LogInformation("Successfully connected to MongoDB database '{DatabaseName}'. Connection: {ConnectionStringMasked}",
-        mongoDatabaseName, MaskConnectionString(envConn ?? mongoConnectionString));
-}
-catch (Exception ex)
-{
-    logger.LogError(ex, "Failed to connect to MongoDB. Connection string (masked): {ConnectionStringMasked}",
-        MaskConnectionString(Environment.GetEnvironmentVariable("MONGO_CONNECTION") ?? mongoConnectionString));
-    // Re-throw to prevent the app from running in a bad state.
-    throw;
-}
-
 static string? BuildMongoConnectionStringFromEnv()
 {
     var envUser = Environment.GetEnvironmentVariable("MONGO_USER");

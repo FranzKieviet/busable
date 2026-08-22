@@ -25,7 +25,7 @@ resource "aws_iam_role_policy" "ingestion_lambda_policy" {
 }
 
 resource "aws_iam_role" "apprunner_ecr_access" {
-  name = "busable-apprunner-ecr-role"
+  name = "busable-apprunner-ecr-role-${var.branch}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"

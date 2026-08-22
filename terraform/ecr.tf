@@ -9,7 +9,7 @@ resource "aws_ecr_repository" "busable_api" {
 
 
 resource "aws_apprunner_service" "busable_api" {
-  service_name = "busable-api"
+  service_name = "busable-api-${var.branch}"
 
   source_configuration {
     authentication_configuration {

@@ -5,15 +5,13 @@ resource "null_resource" "install_dependencies" {
   }
 
   provisioner "local-exec" {
-    # Uses platform-independent python/pip invocation
-    command = "python -m pip install -r ${path.module}/../dataloaders/requirements.txt -t ${path.module}/../dataloaders/"
+    command = "docker run --rm -v ${abspath("${path.module}/../dataloaders")}:/var/task public.ecr.aws/sam/build-python3.10:latest pip install -r requirements.txt -t ."
   }
 }
 
-# 2. Zip the dataloaders folder AFTER dependencies are installed
 data "archive_file" "dataloader_lambda_zip" {
   type        = "zip"
-  source_dir  = "${path.module}/../dataloaders"
+  source_dir  = abspath("${path.module}/../dataloaders")
   output_path = "${path.module}/dataloader_lambda.zip"
 
   depends_on = [null_resource.install_dependencies]

@@ -1,4 +1,4 @@
-from transit_dataloader import main as transit_dataloader_main
+from transit_dataloader.dataloader import main as transit_dataloader_main
 
 def lambda_handler(event, context):
     """

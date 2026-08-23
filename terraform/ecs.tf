@@ -70,7 +70,7 @@ resource "aws_ecs_task_definition" "busable_api" {
         },
         {
           name  = "Mongo__DatabaseName"
-          value = "busable_${var.branch}"
+          value = "busable"
         },
         {
           name  = "ASPNETCORE_ENVIRONMENT"

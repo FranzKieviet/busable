@@ -14,8 +14,9 @@ namespace Busable.Data.Repositories
         private readonly IMongoCollection<BsonDocument> _stopsCollection;
         private readonly IMongoCollection<BsonDocument> _routesCollection;
         private const int MAX_TIME = 900; //15 mins in seconds
+        private readonly ILogger<BusStopRepository> _logger;
 
-        public BusStopRepository(IMongoDatabase database, string stopsCollectionName, string routesCollectionName)
+        public BusStopRepository(IMongoDatabase database, string stopsCollectionName, string routesCollectionName, ILogger<BusStopRepository> logger)
         {
             _database = database ?? throw new ArgumentNullException(nameof(database));
             if (string.IsNullOrWhiteSpace(stopsCollectionName))
@@ -25,11 +26,16 @@ namespace Busable.Data.Repositories
             _stopsCollection = _database.GetCollection<BsonDocument>(stopsCollectionName);
             _routesCollection = _database.GetCollection<BsonDocument>(routesCollectionName);
             _queryHelper = new QueryHelper();
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+            _logger.LogInformation("BusStopRepository initialized with database '{DatabaseName}' and stops collection: '{StopsCollection}' and routes collection: '{RoutesCollection}'", _database.DatabaseNamespace.DatabaseName, stopsCollectionName, routesCollectionName);
         }
 
         public async Task<List<BusStop?>> GetNearestBusStopAsync(double latitude, double longitude, double maxDistanceM)
         {
+            _logger.LogInformation("GetNearestBusStopAsync called. Lat: {Lat}, Lng: {Lng}, Radius: {Dist}m", latitude, longitude, maxDistanceM);
             var docs = await _queryHelper.GetNearestAsync(_stopsCollection, latitude, longitude, maxDistanceM);
+            _logger.LogInformation("Mongo Query returned {Count} raw documents.", docs?.Count ?? 0);
             return docs?.Select(doc => MapDocument(doc, latitude, longitude)).ToList() ?? new List<BusStop?>();
         }
 
@@ -130,11 +136,7 @@ namespace Busable.Data.Repositories
                         }
                     })
             };
-
-            var result = await _routesCollection
-                .Aggregate<DownstreamRouteDbo>(pipeline)
-                .FirstOrDefaultAsync();
-
+            var result = await _routesCollection.Aggregate<DownstreamRouteDbo>(pipeline).FirstOrDefaultAsync();
             return result;
         }
 

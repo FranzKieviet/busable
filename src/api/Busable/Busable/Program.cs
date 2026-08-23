@@ -2,7 +2,6 @@ using Busable.Business.Interfaces;
 using Busable.Business.Services;
 using Busable.Data.Interfaces;
 using Busable.Data.Repositories;
-using MongoDB.Bson;
 using MongoDB.Driver;
 using System.Text.RegularExpressions;
 
@@ -43,7 +42,12 @@ var placesCollectionName = Environment.GetEnvironmentVariable("MONGO__PLACES_COL
 
 
 builder.Services.AddSingleton<IBusStopsRepository>(sp =>
-    new BusStopRepository(sp.GetRequiredService<IMongoDatabase>(), stopsCollectionName, routesCollectionName));
+    new BusStopRepository(
+        sp.GetRequiredService<IMongoDatabase>(),
+        stopsCollectionName,
+        routesCollectionName,
+        sp.GetRequiredService<ILogger<BusStopRepository>>()
+    ));
 builder.Services.AddSingleton<IPlacesRepository>(sp =>
     new PlacesRepository(sp.GetRequiredService<IMongoDatabase>(), placesCollectionName));
 builder.Services.AddScoped<IBusStopsService, BusStopsService>();

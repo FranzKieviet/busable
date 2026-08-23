@@ -3,6 +3,6 @@
     public class NearestBusStopsByLineResponse : NearestBusStopsResponse
     {
 
-        public List<string> UniqueRoutes { get; set; }
+        public List<string> UniqueRoutesList { get; set; }
     }
 }

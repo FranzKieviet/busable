@@ -56,7 +56,7 @@ namespace Busable.Business.Services
             return new NearestBusStopsByLineResponse()
             {
                 BusStops = filteredStops,
-                UniqueRoutes = uniqueRoutes.ToList()
+                UniqueRoutesList = uniqueRoutes.ToList()
             };
         }
 

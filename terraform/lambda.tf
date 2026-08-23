@@ -31,4 +31,11 @@ resource "aws_lambda_function" "dataloader" {
 
   timeout     = 300
   memory_size = 512
+
+  environment {
+    variables = {
+      MONGO_URI = var.mongodb_uri
+      DB_NAME   = "busable"
+    }
+  }
 }

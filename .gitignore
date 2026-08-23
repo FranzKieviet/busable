@@ -53,3 +53,9 @@ venv/
 # Terraform local overrides
 *.tfvars.local
 *.auto.tfvars
+
+#Avoid saving python packages:
+dataloaders/*/
+!dataloaders/transit_dataloader/
+!dataloaders/place_dataloader/
+!dataloaders/lib/

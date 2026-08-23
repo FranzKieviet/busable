@@ -45,14 +45,14 @@ resource "aws_ecs_task_definition" "busable_api" {
   family                   = "busable-api-${var.branch}"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                      = "256" # 0.25 vCPU
-  memory                   = "512" # 512 MB
+  cpu                      = "256"
+  memory                   = "512"
   execution_role_arn       = aws_iam_role.ecs_execution_role.arn
 
   container_definitions = jsonencode([
     {
       name      = "busable-api"
-      image     = "${aws_ecr_repository.busable_api.repository_url}:latest"
+      image     = "${aws_ecr_repository.busable_api.repository_url}:${var.image_tag}"
       essential = true
 
       portMappings = [
@@ -65,22 +65,22 @@ resource "aws_ecs_task_definition" "busable_api" {
 
       environment = [
         {
-            name  = "Mongo__ConnectionString"
-            value = var.mongodb_uri
+          name  = "Mongo__ConnectionString"
+          value = var.mongodb_uri
         },
         {
-            name  = "Mongo__DatabaseName"
-            value = "busable_${var.branch}"
+          name  = "Mongo__DatabaseName"
+          value = "busable_${var.branch}"
         },
         {
-            name  = "ASPNETCORE_ENVIRONMENT"
-            value = "Production"
+          name  = "ASPNETCORE_ENVIRONMENT"
+          value = "Production"
         },
         {
-            name  = "ASPNETCORE_URLS"
-            value = "http://+:8080"
+          name  = "ASPNETCORE_URLS"
+          value = "http://+:8080"
         }
-    ]
+      ]
 
       logConfiguration = {
         logDriver = "awslogs"

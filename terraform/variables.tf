@@ -25,3 +25,9 @@ variable "mongodb_uri" {
   description = "MongoDB Connection String"
   sensitive   = true
 }
+
+variable "image_tag" {
+  type        = string
+  description = "The container image tag to deploy (Git commit SHA)"
+  default     = "latest"
+}

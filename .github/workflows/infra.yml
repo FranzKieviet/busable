@@ -76,7 +76,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # STEP 4: Build and Push Docker Image to ECR
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
@@ -84,21 +83,23 @@ jobs:
           file: ./src/api/Busable/Busable/Dockerfile
           platforms: linux/amd64
           push: true
-          tags: ${{ steps.login-ecr.outputs.registry }}/busable-api:latest
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/busable-api:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/busable-api:latest
 
-      # STEP 5: Run full Terraform Plan & Apply
+      # STEP 5: Run full Terraform Plan & Apply with image_tag variable
       - name: Terraform Plan (Prod)
         if: steps.branch_info.outputs.BRANCH == 'master'
-        run: terraform plan -input=false -var-file=tfvars/master.tfvars -var-file=tfvars/prod.tfvars
+        run: terraform plan -input=false -var-file=tfvars/master.tfvars -var-file=tfvars/prod.tfvars -var="image_tag=${{ github.sha }}"
       
       - name: Terraform Plan (Non-Prod)
         if: steps.branch_info.outputs.BRANCH != 'master'
-        run: terraform plan -input=false -var-file=tfvars/master.tfvars -var-file=tfvars/nonprod.tfvars -var="branch=${{ steps.branch_info.outputs.STACK }}"
+        run: terraform plan -input=false -var-file=tfvars/master.tfvars -var-file=tfvars/nonprod.tfvars -var="branch=${{ steps.branch_info.outputs.STACK }}" -var="image_tag=${{ github.sha }}"
 
       - name: Apply (Prod)
         if: steps.branch_info.outputs.BRANCH == 'master'
-        run: terraform apply -auto-approve -input=false -var-file=tfvars/master.tfvars -var-file=tfvars/prod.tfvars
+        run: terraform apply -auto-approve -input=false -var-file=tfvars/master.tfvars -var-file=tfvars/prod.tfvars -var="image_tag=${{ github.sha }}"
       
       - name: Apply (Non-Prod)
         if: steps.branch_info.outputs.BRANCH != 'master'
-        run: terraform apply -auto-approve -input=false -var-file=tfvars/master.tfvars -var-file=tfvars/nonprod.tfvars -var="branch=${{ steps.branch_info.outputs.STACK }}"
+        run: terraform apply -auto-approve -input=false -var-file=tfvars/master.tfvars -var-file=tfvars/nonprod.tfvars -var="branch=${{ steps.branch_info.outputs.STACK }}" -var="image_tag=${{ github.sha }}"

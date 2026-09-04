@@ -49,7 +49,7 @@ builder.Services.AddSingleton<IBusStopsRepository>(sp =>
         sp.GetRequiredService<ILogger<BusStopRepository>>()
     ));
 builder.Services.AddSingleton<IPlacesRepository>(sp =>
-    new PlacesRepository(sp.GetRequiredService<IMongoDatabase>(), placesCollectionName));
+    new PlacesRepository(sp.GetRequiredService<IMongoDatabase>(), placesCollectionName, sp.GetRequiredService<ILogger<PlacesRepository>>()));
 builder.Services.AddScoped<IBusStopsService, BusStopsService>();
 builder.Services.AddScoped<IPlacesService, PlacesService>();
 

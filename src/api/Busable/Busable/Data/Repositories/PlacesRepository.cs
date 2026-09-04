@@ -1,6 +1,7 @@
 ﻿using Busable.Business.Objects;
 using Busable.Data.Interfaces;
 using Busable.Data.Utilities;
+using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
@@ -11,20 +12,25 @@ namespace Busable.Data.Repositories
         private QueryHelper _queryHelper;
         private readonly IMongoDatabase _database;
         private readonly IMongoCollection<BsonDocument> _placesCollection;
+        private readonly ILogger<PlacesRepository> _logger;
 
-        public PlacesRepository(IMongoDatabase database, string placesCollectionName)
+        public PlacesRepository(IMongoDatabase database, string placesCollectionName, ILogger<PlacesRepository> logger)
         {
             _database = database ?? throw new ArgumentNullException(nameof(database));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             if (string.IsNullOrWhiteSpace(placesCollectionName))
                 throw new ArgumentException("Places collection name must be provided.", nameof(placesCollectionName));
 
             _placesCollection = _database.GetCollection<BsonDocument>(placesCollectionName);
             _queryHelper = new QueryHelper();
+            _logger.LogInformation("PlacesRepository initialized with database '{DatabaseName}' and places collection: '{PlacesCollection}'", _database.DatabaseNamespace.DatabaseName, placesCollectionName);
         }
 
         public async Task<List<Place?>> GetNearestPlacesAsync(double latitude, double longitude, double maxDistanceM)
         {
+            _logger.LogInformation("GetNearestPlacesAsync called. Lat: {Lat}, Lng: {Lng}, Radius: {Dist}m", latitude, longitude, maxDistanceM);
             var docs = await _queryHelper.GetNearestAsync(_placesCollection, latitude, longitude, maxDistanceM);
+            _logger.LogInformation("Mongo Query returned {Count} raw documents for places query.", docs?.Count ?? 0);
             return docs?.Select(doc => MapDocument(doc, latitude, longitude)).ToList() ?? new List<Place?>();
         }
 

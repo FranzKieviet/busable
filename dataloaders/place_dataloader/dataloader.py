@@ -75,3 +75,12 @@ if __name__ == "__main__":
     # Run the upload
     upload_data(data=places, collection_name="places" + "_" + data_version)
     print(f"\nSaved valid JSON array with {len(places)} records")
+
+
+def main():
+    """Programmatic entrypoint for invoking the places dataloader (e.g. from Lambda router)."""
+    data_version = datetime.now().strftime("%Y%m%d_%H%M%S")
+    places = process_places()
+    upload_data(data=places, collection_name="places" + "_" + data_version)
+    print(f"Saved places collection: places_{data_version} ({len(places)} records)")
+    return {"collection": f"places_{data_version}", "count": len(places)}

@@ -11,25 +11,46 @@ namespace Busable.Data.Repositories
     {
         private QueryHelper _queryHelper;
         private readonly IMongoDatabase _database;
-        private readonly IMongoCollection<BsonDocument> _placesCollection;
+        private readonly string _placesVersionsCollectionName;
+        private readonly string _placesFallbackCollectionName;
         private readonly ILogger<PlacesRepository> _logger;
 
-        public PlacesRepository(IMongoDatabase database, string placesCollectionName, ILogger<PlacesRepository> logger)
+        public PlacesRepository(IMongoDatabase database, string placesVersionsCollectionName, string placesFallbackCollectionName, ILogger<PlacesRepository> logger)
         {
             _database = database ?? throw new ArgumentNullException(nameof(database));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            if (string.IsNullOrWhiteSpace(placesCollectionName))
-                throw new ArgumentException("Places collection name must be provided.", nameof(placesCollectionName));
+            _placesVersionsCollectionName = placesVersionsCollectionName ?? throw new ArgumentNullException(nameof(placesVersionsCollectionName));
+            _placesFallbackCollectionName = placesFallbackCollectionName ?? throw new ArgumentNullException(nameof(placesFallbackCollectionName));
 
-            _placesCollection = _database.GetCollection<BsonDocument>(placesCollectionName);
             _queryHelper = new QueryHelper();
-            _logger.LogInformation("PlacesRepository initialized with database '{DatabaseName}' and places collection: '{PlacesCollection}'", _database.DatabaseNamespace.DatabaseName, placesCollectionName);
+            _logger.LogInformation("PlacesRepository initialized with database '{DatabaseName}' and versions collection: '{PlacesVersions}'", _database.DatabaseNamespace.DatabaseName, _placesVersionsCollectionName);
         }
+
+        private string ResolveLatestCollectionName(string versionsCollectionName, string fallback)
+        {
+            try
+            {
+                var versionsColl = _database.GetCollection<BsonDocument>(versionsCollectionName);
+                var filter = Builders<BsonDocument>.Filter.Eq("is_latest", true);
+                var doc = versionsColl.Find(filter).Sort(Builders<BsonDocument>.Sort.Descending("created_at")).FirstOrDefault();
+                if (doc != null && doc.Contains("collection_name"))
+                {
+                    return doc["collection_name"].AsString;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to resolve latest collection from versions collection {VersionsColl}; falling back to {Fallback}", versionsCollectionName, fallback);
+            }
+            return fallback;
+        }
+
+        private IMongoCollection<BsonDocument> GetPlacesCollection() => _database.GetCollection<BsonDocument>(ResolveLatestCollectionName(_placesVersionsCollectionName, _placesFallbackCollectionName));
 
         public async Task<List<Place?>> GetNearestPlacesAsync(double latitude, double longitude, double maxDistanceM)
         {
             _logger.LogInformation("GetNearestPlacesAsync called. Lat: {Lat}, Lng: {Lng}, Radius: {Dist}m", latitude, longitude, maxDistanceM);
-            var docs = await _queryHelper.GetNearestAsync(_placesCollection, latitude, longitude, maxDistanceM);
+            var docs = await _queryHelper.GetNearestAsync(GetPlacesCollection(), latitude, longitude, maxDistanceM);
             _logger.LogInformation("Mongo Query returned {Count} raw documents for places query.", docs?.Count ?? 0);
             return docs?.Select(doc => MapDocument(doc, latitude, longitude)).ToList() ?? new List<Place?>();
         }

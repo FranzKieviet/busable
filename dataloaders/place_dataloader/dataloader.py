@@ -30,12 +30,24 @@ def process_places():
     print("Querying Overture Maps Parquet on AWS S3...")
 
     # 1. Execute Query and create DataFrame
-    df = con.sql(query).df()
+    try:
+        df = con.sql(query).df()
+        print(f"\nExtracted {len(df)} places from Overture S3!")
 
-    print(f"\nExtracted {len(df)} places!")
-
-    # 2. Replace NaN / NaT values across the entire DataFrame with None (JSON null)
-    df = df.replace({np.nan: None})
+        # 2. Replace NaN / NaT values across the entire DataFrame with None (JSON null)
+        df = df.replace({np.nan: None})
+    except Exception as e:
+        # Fallback: try loading a local sample JSON file included in the repo
+        local_sample = Path(__file__).parent / "overture_berkeley_places.json"
+        if local_sample.exists():
+            print(f"Failed to query Overture S3 ({e}). Falling back to local sample {local_sample}")
+            import json as _json
+            with local_sample.open(encoding="utf-8") as fh:
+                places_list = _json.load(fh)
+            print(f"Loaded {len(places_list)} places from local sample")
+            return places_list
+        else:
+            raise
 
     # Helper to safely clean individual fields
     def safe_float(val, default=0.0):

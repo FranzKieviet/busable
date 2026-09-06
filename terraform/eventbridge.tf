@@ -31,3 +31,36 @@ resource "aws_lambda_permission" "allow_eventbridge" {
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.files_uploaded_rule.arn
 }
+
+// Additional rule for S3 uploads to the `imports/` prefix (places ingestion)
+resource "aws_cloudwatch_event_rule" "imports_files_uploaded_rule" {
+  name        = "${local.project_prefix}-gtfs-imports-ingestion-trigger-rule"
+  description = "Trigger ingestion when files are uploaded to the S3 bucket under imports/"
+
+  event_pattern = jsonencode({
+    source = ["aws.s3"]
+    "detail-type" = ["Object Created"]
+    detail = {
+      bucket = {
+        name = [aws_s3_bucket.ingestion_bucket.bucket]
+      }
+      object = {
+        key = [{ prefix = "imports/" }]
+      }
+    }
+  })
+}
+
+resource "aws_cloudwatch_event_target" "lambda_imports" {
+  rule      = aws_cloudwatch_event_rule.imports_files_uploaded_rule.name
+  target_id = "invoke-lambda-imports"
+  arn       = aws_lambda_function.dataloader.arn
+}
+
+resource "aws_lambda_permission" "allow_eventbridge_imports" {
+  statement_id  = "AllowExecutionFromEventBridgeImports"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.dataloader.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.imports_files_uploaded_rule.arn
+}

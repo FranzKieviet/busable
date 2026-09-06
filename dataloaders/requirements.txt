@@ -1,3 +1,5 @@
 python-dotenv==1.2.1
 boto3
 pymongo==4.17.0
+duckdb
+numpy

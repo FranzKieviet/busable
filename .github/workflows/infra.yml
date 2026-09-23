@@ -89,10 +89,6 @@ jobs:
             ${{ steps.login-ecr.outputs.registry }}/busable-api:latest
 
       # STEP 5: Run full Terraform Plan & Apply with image_tag variable
-      - name: Fix EventBridge resource name in state
-        run: |
-          terraform state mv aws_cloudwatch_event_rule.files_uploaded_rule aws_cloudwatch_event_rule.agency_files_uploaded_rule
-
       - name: Terraform Plan (Prod)
         if: steps.branch_info.outputs.BRANCH == 'master'
         run: terraform plan -input=false -var-file=tfvars/master.tfvars -var-file=tfvars/prod.tfvars -var="image_tag=${{ github.sha }}"

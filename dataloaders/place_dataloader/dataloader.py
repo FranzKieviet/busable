@@ -1,5 +1,6 @@
 import json
 import math
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -11,20 +12,39 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from .query_config import get_place_query
-from dataloaders.lib.mongodb import upload_data
+from lib.mongodb import upload_data
 
 # Coordinates around Sather Gate (1km Bounding Box)
 XMIN, YMIN = -122.2695, 37.8603
 XMAX, YMAX = -122.2495, 37.8803
 
-con = duckdb.connect()
 
-# Install and load spatial & httpfs extensions for DuckDB
-con.sql("INSTALL spatial; LOAD spatial;")
-con.sql("INSTALL httpfs; LOAD httpfs;")
-con.sql("SET s3_region='us-west-2';")
+def _connect():
+    """Create a DuckDB connection with spatial + httpfs loaded.
+
+    In the Lambda image, extensions are pre-installed at build time into
+    DUCKDB_EXTENSION_DIR (see Dockerfile), since Lambda has no HOME and only /tmp
+    is writable. Locally, fall back to DuckDB's default dirs and install on demand.
+    """
+    extension_dir = os.environ.get("DUCKDB_EXTENSION_DIR")
+    if extension_dir:
+        con = duckdb.connect(config={
+            "extension_directory": extension_dir,
+            "home_directory": "/tmp",
+            "temp_directory": "/tmp/duckdb_tmp",
+            "autoinstall_known_extensions": False,
+        })
+    else:
+        con = duckdb.connect()
+        con.sql("INSTALL spatial; INSTALL httpfs;")
+
+    con.sql("LOAD spatial; LOAD httpfs;")
+    con.sql("SET s3_region='us-west-2';")
+    return con
+
 
 def process_places():
+    con = _connect()
     query = get_place_query(XMIN, XMAX, YMIN, YMAX)
 
     print("Querying Overture Maps Parquet on AWS S3...")

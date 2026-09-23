@@ -207,6 +207,10 @@ def process_stops(agency):
         trip_times = process_trip_times(agency, trips)
         stops = create_basic_stops(agency)
 
+        # trip_times carries direction-qualified route ids (e.g. "AC_route_7_0"), but routes
+        # is keyed by the raw GTFS route_id ("7"), so map each trip back to its raw route_id
+        trip_gtfs_route_ids = {trip["trip_id"]: trip["route_id"] for trip in load_file(agency=agency, gtfsFileName="trips", path=None)}
+
         seen_routes = set()
 
         for trip_id, trip_list in trip_times.items():
@@ -215,17 +219,17 @@ def process_stops(agency):
             if route_id in seen_routes:
                 continue
             seen_routes.add(route_id)
-            
+            route = routes[trip_gtfs_route_ids[trip_id]]
+
             # trip_list is a list of stops for this trip, sorted by arrival time
             for i, trip_stop in enumerate(trip_list):
                 stop_id = trip_stop["stop_id"]
-                route = trip_stop["route_id"]
-                
+
                 # Add route to routes_served if not already there
                 route_info = {
                     "route_id": route_id,
-                    "route_short_name": routes[route_id]["route_short_name"],
-                    "route_long_name": routes[route_id]["route_long_name"]
+                    "route_short_name": route["route_short_name"],
+                    "route_long_name": route["route_long_name"]
                 }
                 if route_info not in stops[stop_id]["routes_served"]:
                     stops[stop_id]["routes_served"].append(route_info)
@@ -245,7 +249,7 @@ def process_stops(agency):
                     prev_stop_connection = {
                         "stop_id": prev_stop["stop_id"],
                         "route_id": route_id,
-                        "travel_time_sec": calculate_travel_time(trip_stop["departure_time"], prev_stop["arrival_time"])
+                        "travel_time_sec": calculate_travel_time(prev_stop["departure_time"], trip_stop["arrival_time"])
                     }
                     stops[stop_id]["next_connections"].append(prev_stop_connection)
         return stops

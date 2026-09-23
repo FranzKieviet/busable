@@ -1,5 +1,5 @@
 resource "aws_iam_role_policy" "ingestion_lambda_policy" {
-  name = "AllowS3Imports"
+  name = "AllowS3ImportsAndTriggers"
   role = aws_iam_role.lambda_role.name
 
   policy = jsonencode({
@@ -7,16 +7,27 @@ resource "aws_iam_role_policy" "ingestion_lambda_policy" {
     Statement = [
       {
         Effect = "Allow"
-        Action = ["s3:GetObject", "s3:HeadObject", "s3:DeleteObject"]
-        Resource = ["arn:aws:s3:::${aws_s3_bucket.ingestion_bucket.bucket}/imports/*"]
+        Action = [
+          "s3:GetObject",
+          "s3:HeadObject",
+          "s3:DeleteObject",
+          "s3:DeleteObjectVersion"
+        ]
+        Resource = [
+          "${aws_s3_bucket.ingestion_bucket.arn}/imports/*",
+          "${aws_s3_bucket.ingestion_bucket.arn}/triggers/*"
+        ]
       },
       {
-        Effect = "Allow"
-        Action = "s3:ListBucket"
-        Resource = "arn:aws:s3:::${aws_s3_bucket.ingestion_bucket.bucket}"
+        Effect   = "Allow"
+        Action   = "s3:ListBucket"
+        Resource = aws_s3_bucket.ingestion_bucket.arn
         Condition = {
           StringLike = {
-            "s3:prefix" = ["imports/*"]
+            "s3:prefix" = [
+              "imports/*",
+              "triggers/*"
+            ]
           }
         }
       }

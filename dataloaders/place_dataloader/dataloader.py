@@ -10,7 +10,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from query_config import get_place_query
+from .query_config import get_place_query
 from dataloaders.lib.mongodb import upload_data
 
 # Coordinates around Sather Gate (1km Bounding Box)

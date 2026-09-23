@@ -60,6 +60,9 @@ jobs:
       - name: Terraform validate
         run: terraform validate
 
+      - name: Clean up old EventBridge resource from state
+        run: terraform state rm aws_cloudwatch_event_rule.files_uploaded_rule || true
+
       # STEP 1: Provision ECR repository first so Docker has a destination target
       - name: Provision ECR Repo
         env:

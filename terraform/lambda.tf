@@ -1,4 +1,4 @@
-# 1. Install dependencies into a build directory before zipping
+# 1. Install dependencies with --no-cache-dir to reduce footprint
 resource "null_resource" "install_dependencies" {
   triggers = {
     requirements = filemd5("${path.module}/../dataloaders/requirements.txt")
@@ -6,7 +6,7 @@ resource "null_resource" "install_dependencies" {
   }
 
   provisioner "local-exec" {
-    command = "docker run --rm -w /var/task -v ${abspath("${path.module}/../dataloaders")}:/var/task public.ecr.aws/sam/build-python3.10:latest bash -c 'pip install -r requirements.txt -t /var/task && find /var/task -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true && find /var/task -type f -name \"*.dist-info\" -delete && find /var/task -type f -name \"*.pyc\" -delete && echo \"Dependencies installed and cleaned successfully\"'"
+    command = "docker run --rm -w /var/task -v ${abspath("${path.module}/../dataloaders")}:/var/task public.ecr.aws/sam/build-python3.10:latest bash -c 'pip install --no-cache-dir -r requirements.txt -t /var/task && test -d /var/task/pymongo || (echo \"ERROR: pymongo not installed!\" && exit 1)'"
   }
 }
 
@@ -15,14 +15,15 @@ data "archive_file" "dataloader_lambda_zip" {
   source_dir  = abspath("${path.module}/../dataloaders")
   output_path = "${path.module}/dataloader_lambda.zip"
   
+  # Only exclude files we're certain we don't need - everything else goes in the zip
   excludes = [
-    "*.git*",
-    "__pycache__",
-    "*.egg-info",
+    ".git",
+    ".gitignore",
     ".pytest_cache",
     "data",
     "Dockerfile",
-    ".env"
+    ".env",
+    ".dockerignore"
   ]
 
   depends_on = [null_resource.install_dependencies]

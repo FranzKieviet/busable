@@ -60,11 +60,11 @@ jobs:
       - name: Terraform validate
         run: terraform validate
 
-      # STEP 1: Provision ECR repository first so Docker has a destination target
-      - name: Provision ECR Repo
+      # STEP 1: Provision ECR repositories first so Docker has a destination target
+      - name: Provision ECR Repos
         env:
           TF_VAR_mongodb_uri: ${{ secrets.MONGODB_URI }}
-        run: terraform apply -auto-approve -input=false -target=aws_ecr_repository.busable_api -var-file=tfvars/master.tfvars -var="branch=${{ steps.branch_info.outputs.STACK }}"
+        run: terraform apply -auto-approve -input=false -target=aws_ecr_repository.busable_api -target=aws_ecr_repository.dataloader -var-file=tfvars/master.tfvars -var="branch=${{ steps.branch_info.outputs.STACK }}"
 
       # STEP 2: Log in to ECR
       - name: Log in to Amazon ECR

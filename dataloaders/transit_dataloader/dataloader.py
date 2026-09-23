@@ -219,11 +219,16 @@ def process_stops(agency):
             # trip_list is a list of stops for this trip, sorted by arrival time
             for i, trip_stop in enumerate(trip_list):
                 stop_id = trip_stop["stop_id"]
-                route_id = trip_stop["route_id"]
+                route = trip_stop["route_id"]
                 
                 # Add route to routes_served if not already there
-                if route_id not in stops[stop_id]["routes_served"]:
-                    stops[stop_id]["routes_served"].append(route_id)
+                route_info = {
+                    "route_id": route_id,
+                    "route_short_name": routes[route_id]["route_short_name"],
+                    "route_long_name": routes[route_id]["route_long_name"]
+                }
+                if route_info not in stops[stop_id]["routes_served"]:
+                    stops[stop_id]["routes_served"].append(route_info)
                 
                 # Add the next stop connection
                 if i < len(trip_list) - 1:

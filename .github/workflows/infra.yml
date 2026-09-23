@@ -26,7 +26,6 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      TF_LOG: debug
       TF_VAR_mongodb_uri: ${{ secrets.MONGODB_URI }}
 
     defaults:

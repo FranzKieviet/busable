@@ -1,8 +1,11 @@
 # 1. Install dependencies with --no-cache-dir to reduce footprint
+# Force re-run on every apply by including a timestamp trigger
 resource "null_resource" "install_dependencies" {
   triggers = {
     requirements = filemd5("${path.module}/../dataloaders/requirements.txt")
     dataloader_files = filemd5("${path.module}/../dataloaders/main.py")
+    # Force re-install on every CI run to ensure dependencies are fresh
+    build_id = var.image_tag != null ? var.image_tag : timestamp()
   }
 
   provisioner "local-exec" {

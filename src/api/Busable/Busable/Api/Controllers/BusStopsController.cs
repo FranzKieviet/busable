@@ -21,13 +21,14 @@ namespace Busable.Api.Controllers
 
         /***
          Input: Location object 
-         Response: List of bus stops sorted by distance from the input location
+         Response: List of bus stops sorted by distance from the input location.
+            If byLine is true, only the nearest stop for each unique route is returned, along with the list of unique routes.
             //TODO Write better docs here :)
          ***/
 
         [HttpGet]
         [Route("bus-stops/nearest-stops")]
-        public async Task<ActionResult<NearestBusStopsResponse>> GetNearestBusStops([FromQuery] double longitude, [FromQuery] double latitude, [FromQuery] int distance)
+        public async Task<ActionResult<NearestBusStopsResponse>> GetNearestBusStops([FromQuery] double longitude, [FromQuery] double latitude, [FromQuery] int distance, [FromQuery] bool uniqueOnly = false)
         {
             var nearestBusStopsRequest = new Origin
             {
@@ -47,37 +48,11 @@ namespace Busable.Api.Controllers
                 return BadRequest(new { Errors = errors });
             }
 
-            _logger.LogInformation("GetNearestBusStops called with {@Request}", nearestBusStopsRequest);
-            var response = await _service.GetNearestAsync(nearestBusStopsRequest);
+            _logger.LogInformation("GetNearestBusStops called with {@Request}, uniqueOnly: {UniqueOnly}", nearestBusStopsRequest, uniqueOnly);
+            NearestBusStopsResponse response = uniqueOnly
+                ? await _service.GetNearestByLineAsync(nearestBusStopsRequest)
+                : await _service.GetNearestAsync(nearestBusStopsRequest);
             _logger.LogInformation("GetNearestBusStops completed. Returned {Count} stops", response?.BusStops?.Count ?? 0);
-            return Ok(response);
-        }
-
-        [HttpGet]
-        [Route("bus-stops/nearest-stops-by-line")]
-        public async Task<ActionResult<NearestBusStopsResponse>> GetNearestBusStopsByLine([FromQuery] double longitude, [FromQuery] double latitude, [FromQuery] int distance)
-        {
-            var nearestBusStopsRequest = new Origin
-            {
-                Longitude = longitude,
-                Latitude = latitude,
-                MaxDistanceM = distance
-            };
-
-            // Explicitly run data annotations validation since the request is created manually
-            var validationResults = new List<ValidationResult>();
-            var context = new ValidationContext(nearestBusStopsRequest);
-            if (!Validator.TryValidateObject(nearestBusStopsRequest, context, validationResults, validateAllProperties: true))
-            {
-                _logger.LogWarning("Validation failed for GetNearestBusStopsByLine request: {@Request} - Errors: {@Errors}", nearestBusStopsRequest, validationResults.Select(r => r.ErrorMessage));
-                // Return 400 with validation error messages
-                var errors = validationResults.Select(r => new { r.ErrorMessage, Members = r.MemberNames.ToArray() });
-                return BadRequest(new { Errors = errors });
-            }
-
-            _logger.LogInformation("GetNearestBusStopsByLine called with {@Request}", nearestBusStopsRequest);
-            var response = await _service.GetNearestByLineAsync(nearestBusStopsRequest);
-            _logger.LogInformation("GetNearestBusStopsByLine completed. Returned {Count} stops and {Routes} unique routes", response?.BusStops?.Count ?? 0, response?.UniqueRoutesList?.Count ?? 0);
             return Ok(response);
         }
 

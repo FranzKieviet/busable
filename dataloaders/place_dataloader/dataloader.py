@@ -4,8 +4,11 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
+import boto3
 import duckdb
 import numpy as np
+from botocore import UNSIGNED
+from botocore.config import Config
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -17,6 +20,9 @@ from lib.mongodb import upload_data
 # Coordinates around Sather Gate (1km Bounding Box)
 XMIN, YMIN = -122.2695, 37.8603
 XMAX, YMAX = -122.2495, 37.8803
+
+OVERTURE_BUCKET = "overturemaps-us-west-2"
+OVERTURE_REGION = "us-west-2"
 
 
 def _connect():
@@ -39,15 +45,33 @@ def _connect():
         con.sql("INSTALL spatial; INSTALL httpfs;")
 
     con.sql("LOAD spatial; LOAD httpfs;")
-    con.sql("SET s3_region='us-west-2';")
+    # Overture is a public bucket, so read it anonymously. Without this, DuckDB signs requests
+    # with the Lambda role's credentials from the environment, which the bucket rejects (403).
+    con.sql(f"""
+        CREATE SECRET overture (
+            TYPE s3, KEY_ID '', SECRET '', SESSION_TOKEN '',
+            REGION '{OVERTURE_REGION}', SCOPE 's3://{OVERTURE_BUCKET}'
+        )
+    """)
     return con
+
+
+def _latest_overture_release():
+    """Overture only keeps its most recent releases, so look up the newest one rather than pinning it."""
+    s3 = boto3.client("s3", region_name=OVERTURE_REGION, config=Config(signature_version=UNSIGNED))
+    resp = s3.list_objects_v2(Bucket=OVERTURE_BUCKET, Prefix="release/", Delimiter="/")
+    releases = [p["Prefix"].split("/")[1] for p in resp.get("CommonPrefixes", [])]
+    if not releases:
+        raise RuntimeError(f"No Overture releases found in s3://{OVERTURE_BUCKET}/release/")
+    return max(releases)
 
 
 def process_places():
     con = _connect()
-    query = get_place_query(XMIN, XMAX, YMIN, YMAX)
+    release = _latest_overture_release()
+    query = get_place_query(release, XMIN, XMAX, YMIN, YMAX)
 
-    print("Querying Overture Maps Parquet on AWS S3...")
+    print(f"Querying Overture Maps release {release} on AWS S3...")
 
     # 1. Execute Query and create DataFrame
     try:

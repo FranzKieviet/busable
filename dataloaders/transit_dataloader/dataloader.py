@@ -207,8 +207,6 @@ def process_stops(agency):
         trip_times = process_trip_times(agency, trips)
         stops = create_basic_stops(agency)
 
-        # trip_times carries direction-qualified route ids (e.g. "AC_route_7_0"), but routes
-        # is keyed by the raw GTFS route_id ("7"), so map each trip back to its raw route_id
         trip_gtfs_route_ids = {trip["trip_id"]: trip["route_id"] for trip in load_file(agency=agency, gtfsFileName="trips", path=None)}
 
         seen_routes = set()
@@ -288,9 +286,16 @@ def lambda_handler(event, context):
         #Trigger files are name AGENCY-NAME_DATE.txt
         print(f"Processing file {file_name}")
         agency = file_name.split("_")[0]
-        stops = process_stops(agency)
+        stops = list(process_stops(agency).values())
+        routes = list(process_route_documents(agency).values())
         delete_trigger_file(bucket, key)
         print(f"Processed {len(stops)} stops for agency {agency}")
+
+        # Run the upload
+        data_version = datetime.now().strftime("%Y%m%d_%H%M%S")
+        upload_data(data=stops, collection_name="stops" + "_" + agency + "_" + data_version)
+        upload_data(data=routes, collection_name="routes" + "_" + agency + "_" + data_version)
+
     except Exception as e:
         print(f"Error in lambda_handler: {e}")
         raise
@@ -386,18 +391,20 @@ def process_route_documents(agency):
         print(f"Error processing route documents for agency {agency}: {e}")
         return {}
 
-def main():
-    #Create new data version:
-    data_version = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    # Simulating your routing/stop dictionaries
-    stops = list(process_stops(AGENCY).values())
-    routes = list(process_route_documents(AGENCY).values())
+# Local Testing:
+# def main():
+#     #Create new data version:
+#     data_version = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    # Run the upload
-    upload_data(data=stops, collection_name="stops" + "_" + AGENCY + "_" + data_version)
-    upload_data(data=routes, collection_name="routes" + "_" + AGENCY + "_" + data_version)
+#     # Simulating your routing/stop dictionaries
+#     stops = list(process_stops(AGENCY).values())
+#     routes = list(process_route_documents(AGENCY).values())
+
+#     # Run the upload
+#     upload_data(data=stops, collection_name="stops" + "_" + AGENCY + "_" + data_version)
+#     upload_data(data=routes, collection_name="routes" + "_" + AGENCY + "_" + data_version)
     
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
 

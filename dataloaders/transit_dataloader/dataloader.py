@@ -1,4 +1,5 @@
 import csv
+import hashlib
 import os
 import sys
 import urllib.parse
@@ -17,6 +18,12 @@ from lib.mongodb import upload_data
 
 ### For local testing: 
 AGENCY = "ac-transit"
+ROUTE_COLOR_PALETTE = [
+    "#E6194B", "#3CB44B", "#4363D8", "#F58231", "#911EB4",
+    "#42D4F4", "#F032E6", "#469990", "#9A6324", "#800000",
+    "#808000", "#000075", "#E6AB02", "#1B9E77", "#D95F02",
+    "#7570B3", "#E7298A", "#66A61E", "#A6761D", "#1F78B4",
+]
 
 ### Place GTFS files in a folder called "data" in the same directory as this script
 
@@ -57,6 +64,15 @@ def get_id(agency, type, id, direction_id=None):
         return agency + "_" + type + "_" + id + "_" + direction_id
     return agency + "_" + type + "_" + id
 
+def get_route_color(route):
+    """
+    Returns a hex color (#RRGGBB). Uses the agency supplied
+    route_color when valid, otherwise picks a palette color from a hash of the
+    route_id so the color is stable across data loads.
+    """
+    digest = hashlib.md5(route["route_id"].encode("utf-8")).hexdigest()
+    return ROUTE_COLOR_PALETTE[int(digest, 16) % len(ROUTE_COLOR_PALETTE)]
+
 def process_routes(agency):
     """
     Creates routes:
@@ -64,7 +80,8 @@ def process_routes(agency):
         "route_id": {
             "_id": "AC_7",
             "route_short_name": "7",
-            "route_long_name": "San Pablo Avenue"
+            "route_long_name": "San Pablo Avenue",
+            "route_color": "#4363D8"
         }
     }
     """
@@ -76,6 +93,7 @@ def process_routes(agency):
             new_route["_id"] = new_route_id
             new_route["route_short_name"] = route["route_short_name"]
             new_route["route_long_name"] = route["route_long_name"]
+            new_route["route_color"] = get_route_color(route)
             routes[route["route_id"]] = new_route
         print(f"Processed {len(routes)} routes for agency {agency}")
         return routes
@@ -152,6 +170,7 @@ def create_basic_stops(agency):
         "stop_id": {
             "_id": "stop_100234",
             "stop_name": "El Cerrito Plaza BART",
+            "agency": "ac-transit",
             "location": {
                 "type": "Point",
                 "coordinates": [-122.302, 37.898]
@@ -169,6 +188,7 @@ def create_basic_stops(agency):
             new_stop_id = get_id(agency, "stop", stop["stop_id"])
             new_stop["_id"] = new_stop_id
             new_stop["stop_name"] = stop["stop_name"]
+            new_stop["agency"] = agency
             new_stop["routes_served"] = []
             new_stop["next_connections"] = []
 
@@ -227,7 +247,8 @@ def process_stops(agency):
                 route_info = {
                     "route_id": route_id,
                     "route_short_name": route["route_short_name"],
-                    "route_long_name": route["route_long_name"]
+                    "route_long_name": route["route_long_name"],
+                    "route_color": route["route_color"]
                 }
                 if route_info not in stops[stop_id]["routes_served"]:
                     stops[stop_id]["routes_served"].append(route_info)
@@ -329,8 +350,9 @@ def process_route_documents(agency):
     Creates route documents shaped like:
     {
         "_id": "ac-transit_route_W_0",
-        "agency": "AC Transit",
+        "agency": "ac-transit",
         "route_short_name": "W",
+        "route_color": "#4363D8",
         "direction": "Outbound",
         "ordered_stops": [
             {"stop_id": "ac-transit_stop_3", "sequence": 0, "cumulative_time_sec": 0},
@@ -379,8 +401,9 @@ def process_route_documents(agency):
             doc_id = f"{agency}_route_{route_short_name}_{direction_id}"
             route_docs[doc_id] = {
                 "_id": doc_id,
-                "agency": get_agency_display_name(agency),
+                "agency": agency,
                 "route_short_name": route_short_name,
+                "route_color": route_meta.get("route_color") or get_route_color(trip),
                 "direction": get_direction_name(direction_id),
                 "ordered_stops": ordered_stops,
             }

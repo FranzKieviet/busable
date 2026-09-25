@@ -20,9 +20,6 @@
         /// <summary>Longitude in decimal degrees.</summary>
         public double Longitude { get; set; }
 
-        /// <summary>Optional address or description.</summary>
-        public string Address { get; set; } = string.Empty;
-
         /// <summary>City or locality.</summary>
         public string City { get; set; } = string.Empty;
 

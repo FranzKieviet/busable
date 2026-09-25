@@ -193,17 +193,38 @@ namespace Busable.Data.Repositories
             }
 
             var routes = doc.TryGetValue("routes_served", out var routesValue) && routesValue.IsBsonArray
-                ? routesValue.AsBsonArray.Select(r => r.ToString()).ToList()
-                : new List<string>();
+                ? routesValue.AsBsonArray.Select(MapRoute).ToList()
+                : new List<RoutesServed>();
+
+            var agency = doc.GetValue("agency", BsonValue.Create(string.Empty)).ToString();
 
             return new BusStop
             {
                 Id = id,
                 Name = name,
+                Agency = agency,
                 Latitude = latitude,
                 Longitude = longitude,
                 DistanceM = CoordinateCalculator.GetDistanceInMeters(sourceLatitude, sourceLongitude, latitude, longitude),
                 Routes = routes
+            };
+        }
+
+        private static RoutesServed MapRoute(BsonValue route)
+        {
+            // Older loads stored routes_served as plain route id strings
+            if (!route.IsBsonDocument)
+            {
+                return new RoutesServed { Id = route.ToString() };
+            }
+
+            var routeDoc = route.AsBsonDocument;
+            return new RoutesServed
+            {
+                Id = routeDoc.GetValue("route_id", BsonValue.Create(string.Empty)).ToString(),
+                ShortName = routeDoc.GetValue("route_short_name", BsonValue.Create(string.Empty)).ToString(),
+                LongName = routeDoc.GetValue("route_long_name", BsonValue.Create(string.Empty)).ToString(),
+                Color = routeDoc.GetValue("route_color", BsonValue.Create(string.Empty)).ToString()
             };
         }
     }

@@ -45,9 +45,9 @@ namespace Busable.Business.Services
                 {
                     foreach (var route in stop.Routes)
                     {
-                        if (!uniqueRoutes.Contains(route))
+                        if (!uniqueRoutes.Contains(route.Id))
                         {
-                            uniqueRoutes.Add(route);
+                            uniqueRoutes.Add(route.Id);
                             if (!uniqueStops.Contains(stop.Id))
                             {
                                 uniqueStops.Add(stop.Id);
@@ -87,16 +87,16 @@ namespace Busable.Business.Services
                 {
                     foreach (var route in stop.Routes)
                     {
-                        if (!routesSeen.Contains(route))
+                        if (!routesSeen.Contains(route.Id))
                         {
-                            routesSeen.Add(route);
-                            var downstreamStopsDbo = await _repository.GetDownstreamStopsAsync(route, stop.Id);
+                            routesSeen.Add(route.Id);
+                            var downstreamStopsDbo = await _repository.GetDownstreamStopsAsync(route.Id, stop.Id);
                             var mappedDownstream = downstreamStopsDbo?.DownstreamStops?
                                 .Select(d => new OrderedStop { StopId = d.StopId, TravelTimeSec = d.TravelTimeSec })
                                 .ToList() ?? new List<OrderedStop>();
 
-                            response.DownstreamStops[route] = mappedDownstream;
-                            response.RouteNames[route] = downstreamStopsDbo?.RouteShortName ?? string.Empty;
+                            response.DownstreamStops[route.Id] = mappedDownstream;
+                            response.RouteNames[route.Id] = downstreamStopsDbo?.RouteShortName ?? route.ShortName;
                         }
 
                     }

@@ -56,7 +56,9 @@ namespace Busable.Business.Services
                 .ToDictionary(s => s.Id);
 
             var originTimeSec = route.OriginCumulativeTimeSec ?? 0;
-            foreach (var orderedStop in downstream)
+            var stopsFromOrigin = new Dictionary<string, int>();
+            // Downstream stops start right after the origin, so the next stop is 1 stop away
+            foreach (var (orderedStop, index) in downstream.Select((s, i) => (s, i)))
             {
                 if (!stopsById.TryGetValue(orderedStop.StopId, out var stop))
                 {
@@ -72,6 +74,7 @@ namespace Busable.Business.Services
                     Longitude = stop.Longitude,
                     TravelTimeSec = orderedStop.TravelTimeSec - originTimeSec
                 });
+                stopsFromOrigin[stop.Id] = index + 1;
             }
 
             var places = await _repository.GetPlacesNearAnyAsync(response.Stops.Select(s => (s.Latitude, s.Longitude)), request.MaxDistanceM);
@@ -99,6 +102,7 @@ namespace Busable.Business.Services
                     Location = place.Location,
                     ClosestStopId = closest.Stop.StopId,
                     ClosestStopName = closest.Stop.StopName,
+                    StopsFromOrigin = stopsFromOrigin[closest.Stop.StopId],
                     DistanceToStopM = Math.Round(closest.DistanceM, 1)
                 });
             }

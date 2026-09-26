@@ -39,6 +39,9 @@ namespace Busable.Business.Objects
 
         public string ClosestStopName { get; set; } = string.Empty;
 
+        // Number of stops from the origin stop to the closest stop
+        public int StopsFromOrigin { get; set; }
+
         // Straight line distance in meters from the closest stop to this place
         public double DistanceToStopM { get; set; }
     }

@@ -58,8 +58,6 @@ namespace Busable.Business.Services
                 }
             }
 
-            await _repository.GetDownstreamStopsAsync("ac-transit_route_6_1", "ac-transit_stop_5598");
-
             var response = new NearestBusStopsByLineResponse()
             {
                 BusStops = filteredStops,

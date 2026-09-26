@@ -116,6 +116,7 @@ namespace Busable.Data.Repositories
                     {
                         { "_id", 1 },
                         { "route_short_name", 1 },
+                        { "origin_cumulative_time_sec", "$matchedStop.cumulative_time_sec" },
                         {
                             "downstream_stops",
                             new BsonDocument("$filter",
@@ -162,7 +163,21 @@ namespace Busable.Data.Repositories
             return result;
         }
 
-        private static BusStop MapDocument(BsonDocument doc, double sourceLatitude, double sourceLongitude)
+        public async Task<List<BusStop>> GetBusStopsByIdsAsync(IEnumerable<string> stopIds)
+        {
+            var ids = stopIds.Distinct().ToList();
+            _logger.LogInformation("GetBusStopsByIdsAsync called for {Count} stop ids", ids.Count);
+            if (ids.Count == 0)
+            {
+                return new List<BusStop>();
+            }
+
+            var filter = Builders<BsonDocument>.Filter.In("_id", ids);
+            var docs = await GetStopsCollection().Find(filter).ToListAsync();
+            return docs.Select(doc => MapDocument(doc)).ToList();
+        }
+
+        private static BusStop MapDocument(BsonDocument doc, double? sourceLatitude = null, double? sourceLongitude = null)
         {
             var id = doc.GetValue("_id", BsonValue.Create(string.Empty)).ToString();
             var name = doc.GetValue("stop_name",
@@ -205,7 +220,9 @@ namespace Busable.Data.Repositories
                 Agency = agency,
                 Latitude = latitude,
                 Longitude = longitude,
-                DistanceM = CoordinateCalculator.GetDistanceInMeters(sourceLatitude, sourceLongitude, latitude, longitude),
+                DistanceM = sourceLatitude.HasValue && sourceLongitude.HasValue
+                    ? CoordinateCalculator.GetDistanceInMeters(sourceLatitude.Value, sourceLongitude.Value, latitude, longitude)
+                    : null,
                 Routes = routes
             };
         }

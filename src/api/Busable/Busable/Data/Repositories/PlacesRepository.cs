@@ -14,6 +14,7 @@ namespace Busable.Data.Repositories
         private readonly string _placesVersionsCollectionName;
         private readonly string _placesFallbackCollectionName;
         private readonly ILogger<PlacesRepository> _logger;
+        private const double EarthRadiusMeters = 6378100.0; // radius MongoDB uses for $centerSphere
 
         public PlacesRepository(IMongoDatabase database, string placesVersionsCollectionName, string placesFallbackCollectionName, ILogger<PlacesRepository> logger)
         {
@@ -53,6 +54,26 @@ namespace Busable.Data.Repositories
             var docs = await _queryHelper.GetNearestAsync(GetPlacesCollection(), latitude, longitude, maxDistanceM);
             _logger.LogInformation("Mongo Query returned {Count} raw documents for places query.", docs?.Count ?? 0);
             return docs?.Select(doc => MapDocument(doc, latitude, longitude)).ToList() ?? new List<Place?>();
+        }
+
+        public async Task<List<Place>> GetPlacesNearAnyAsync(IEnumerable<(double Latitude, double Longitude)> points, double maxDistanceM)
+        {
+            var pointList = points.ToList();
+            _logger.LogInformation("GetPlacesNearAnyAsync called for {Count} points, Radius: {Dist}m", pointList.Count, maxDistanceM);
+            if (pointList.Count == 0)
+            {
+                return new List<Place>();
+            }
+
+            // $centerSphere takes its radius in radians
+            // Using the $near like above works well around a single point, this works with many points
+            var radiusRadians = maxDistanceM / EarthRadiusMeters;
+            var filter = Builders<BsonDocument>.Filter.Or(pointList.Select(p =>
+                Builders<BsonDocument>.Filter.GeoWithinCenterSphere("location", p.Longitude, p.Latitude, radiusRadians)));
+
+            var docs = await GetPlacesCollection().Find(filter).ToListAsync();
+            _logger.LogInformation("Mongo Query returned {Count} raw documents for places near points query.", docs.Count);
+            return docs.Select(doc => MapDocument(doc, 0, 0)).ToList();
         }
 
         private static Place MapDocument(BsonDocument doc, double sourceLatitude, double sourceLongitude)

@@ -7,5 +7,6 @@ namespace Busable.Data.Interfaces
     {
         Task<List<BusStop?>> GetNearestBusStopAsync(double latitude, double longitude, double maxDistanceM);
         Task<DownstreamRouteDbo> GetDownstreamStopsAsync(string targetRouteId, string originStopId);
+        Task<List<BusStop>> GetBusStopsByIdsAsync(IEnumerable<string> stopIds);
     }
 }

@@ -11,6 +11,9 @@ namespace Busable.Data.Objects
         [BsonElement("route_short_name")]
         public string RouteShortName { get; set; }
 
+        [BsonElement("origin_cumulative_time_sec")]
+        public int? OriginCumulativeTimeSec { get; set; }
+
         [BsonElement("downstream_stops")]
         public List<OrderedStopDbo> DownstreamStops { get; set; }
     }

@@ -60,22 +60,19 @@ static string ResolveLatestCollectionName(IMongoDatabase db, string versionsColl
 
 var database = client.GetDatabase(mongoDatabaseName);
 
-var stopsCollectionName = ResolveLatestCollectionName(database, "bus_stops_data_versions", "MONGO__STOPS_COLLECTION_NAME", "stops_ac-transit_20260816_213922");
-var routesCollectionName = ResolveLatestCollectionName(database, "routes_data_versions", "MONGO__ROUTES_COLLECTION_NAME", "routes_ac-transit_20260816_213922");
 var placesCollectionName = ResolveLatestCollectionName(database, "places_data_versions", "MONGO__PLACES_COLLECTION_NAME", "places_20260813_193405");
 
 
-var stopsFallback = Environment.GetEnvironmentVariable("MONGO__STOPS_COLLECTION_NAME") ?? "stops_ac-transit_20260816_213922";
-var routesFallback = Environment.GetEnvironmentVariable("MONGO__ROUTES_COLLECTION_NAME") ?? "routes_ac-transit_20260816_213922";
+// Every agency's stops and routes live in these two collections; the dataloader flags the live copy with is_active
+var stopsCollectionName = Environment.GetEnvironmentVariable("MONGO__STOPS_COLLECTION_NAME") ?? "stops";
+var routesCollectionName = Environment.GetEnvironmentVariable("MONGO__ROUTES_COLLECTION_NAME") ?? "routes";
 var placesFallback = Environment.GetEnvironmentVariable("MONGO__PLACES_COLLECTION_NAME") ?? "places_20260813_193405";
 
 builder.Services.AddSingleton<IBusStopsRepository>(sp =>
     new BusStopRepository(
         sp.GetRequiredService<IMongoDatabase>(),
-        "bus_stops_data_versions",
-        "routes_data_versions",
-        stopsFallback,
-        routesFallback,
+        stopsCollectionName,
+        routesCollectionName,
         sp.GetRequiredService<ILogger<BusStopRepository>>()
     ));
 builder.Services.AddSingleton<IPlacesRepository>(sp =>

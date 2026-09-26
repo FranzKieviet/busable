@@ -10,6 +10,25 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: admin
       MONGO_INITDB_ROOT_PASSWORD: devpassword
+    # Run as a single node replica set so the dataloader can use transactions.
+    # A replica set with auth needs a keyfile; it is only used between members, so a fresh one per start is fine.
+    entrypoint:
+      - bash
+      - -c
+      - |
+        head -c 756 /dev/urandom | base64 > /tmp/mongo-keyfile
+        chmod 400 /tmp/mongo-keyfile
+        chown 999:999 /tmp/mongo-keyfile
+        exec docker-entrypoint.sh mongod --replSet rs0 --bind_ip_all --keyFile /tmp/mongo-keyfile
+    # Initiates the replica set on first start, then just reports its status
+    healthcheck:
+      test: >
+        mongosh -u admin -p devpassword --authenticationDatabase admin --quiet --eval
+        "try { rs.status().ok } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'busable-local-mongo:27017' }] }).ok }"
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 10s
     volumes:
       - mongo-data:/data/db
 
@@ -17,7 +36,8 @@ services:
     image: busable:dev
     container_name: Busable
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_healthy
     restart: no
     environment:
       - MONGO_USER=admin

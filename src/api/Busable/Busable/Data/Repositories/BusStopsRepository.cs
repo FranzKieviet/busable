@@ -11,63 +11,52 @@ namespace Busable.Data.Repositories
     {
         private QueryHelper _queryHelper;
         private readonly IMongoDatabase _database;
-        private readonly string _stopsVersionsCollectionName;
-        private readonly string _routesVersionsCollectionName;
-        private readonly string _stopsFallbackCollectionName;
-        private readonly string _routesFallbackCollectionName;
+        private readonly string _stopsCollectionName;
+        private readonly string _routesCollectionName;
         private const int MAX_TIME = 900; //15 mins in seconds
         private readonly ILogger<BusStopRepository> _logger;
 
-        public BusStopRepository(IMongoDatabase database, string stopsVersionsCollectionName, string routesVersionsCollectionName, string stopsFallbackCollectionName, string routesFallbackCollectionName, ILogger<BusStopRepository> logger)
+        public BusStopRepository(IMongoDatabase database, string stopsCollectionName, string routesCollectionName, ILogger<BusStopRepository> logger)
         {
             _database = database ?? throw new ArgumentNullException(nameof(database));
-            _stopsVersionsCollectionName = stopsVersionsCollectionName ?? throw new ArgumentNullException(nameof(stopsVersionsCollectionName));
-            _routesVersionsCollectionName = routesVersionsCollectionName ?? throw new ArgumentNullException(nameof(routesVersionsCollectionName));
-            _stopsFallbackCollectionName = stopsFallbackCollectionName ?? throw new ArgumentNullException(nameof(stopsFallbackCollectionName));
-            _routesFallbackCollectionName = routesFallbackCollectionName ?? throw new ArgumentNullException(nameof(routesFallbackCollectionName));
+            _stopsCollectionName = stopsCollectionName ?? throw new ArgumentNullException(nameof(stopsCollectionName));
+            _routesCollectionName = routesCollectionName ?? throw new ArgumentNullException(nameof(routesCollectionName));
             _queryHelper = new QueryHelper();
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-            _logger.LogInformation("BusStopRepository initialized with database '{DatabaseName}' and version collections: '{StopsVersions}' and '{RoutesVersions}'", _database.DatabaseNamespace.DatabaseName, _stopsVersionsCollectionName, _routesVersionsCollectionName);
+            _logger.LogInformation("BusStopRepository initialized with database '{DatabaseName}' and collections: '{Stops}' and '{Routes}'", _database.DatabaseNamespace.DatabaseName, _stopsCollectionName, _routesCollectionName);
         }
 
-        private string ResolveLatestCollectionName(string versionsCollectionName, string fallback)
-        {
-            try
-            {
-                var versionsColl = _database.GetCollection<BsonDocument>(versionsCollectionName);
-                var filter = Builders<BsonDocument>.Filter.Eq("is_latest", true);
-                var doc = versionsColl.Find(filter).Sort(Builders<BsonDocument>.Sort.Descending("created_at")).FirstOrDefault();
-                if (doc != null && doc.Contains("collection_name"))
-                {
-                    return doc["collection_name"].AsString;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to resolve latest collection from versions collection {VersionsColl}; falling back to {Fallback}", versionsCollectionName, fallback);
-            }
-            return fallback;
-        }
+        private IMongoCollection<BsonDocument> GetStopsCollection() => _database.GetCollection<BsonDocument>(_stopsCollectionName);
+        private IMongoCollection<BsonDocument> GetRoutesCollection() => _database.GetCollection<BsonDocument>(_routesCollectionName);
 
-        private IMongoCollection<BsonDocument> GetStopsCollection() => _database.GetCollection<BsonDocument>(ResolveLatestCollectionName(_stopsVersionsCollectionName, _stopsFallbackCollectionName));
-        private IMongoCollection<BsonDocument> GetRoutesCollection() => _database.GetCollection<BsonDocument>(ResolveLatestCollectionName(_routesVersionsCollectionName, _routesFallbackCollectionName));
+        // The dataloader inserts each agency's new data as inactive, then swaps it to active in one transaction.
+        // Only active documents are ever served.
+        private static readonly FilterDefinition<BsonDocument> ActiveFilter = Builders<BsonDocument>.Filter.Eq("is_active", true);
+
+        // A query that is still reading while a swap commits can pick up both the old and new copy of a stop.
+        // Keep the first copy of each stop id so callers never see duplicates.
+        private static List<BusStop> DistinctById(IEnumerable<BusStop> stops) => stops.GroupBy(s => s.Id).Select(g => g.First()).ToList();
 
         public async Task<List<BusStop?>> GetNearestBusStopAsync(double latitude, double longitude, double maxDistanceM)
         {
             _logger.LogInformation("GetNearestBusStopAsync called. Lat: {Lat}, Lng: {Lng}, Radius: {Dist}m", latitude, longitude, maxDistanceM);
-            var docs = await _queryHelper.GetNearestAsync(GetStopsCollection(), latitude, longitude, maxDistanceM);
+            var docs = await _queryHelper.GetNearestAsync(GetStopsCollection(), latitude, longitude, maxDistanceM, ActiveFilter);
             _logger.LogInformation("Mongo Query returned {Count} raw documents.", docs?.Count ?? 0);
-            return docs?.Select(doc => MapDocument(doc, latitude, longitude)).ToList() ?? new List<BusStop?>();
+            return DistinctById(docs?.Select(doc => MapDocument(doc, latitude, longitude)) ?? Enumerable.Empty<BusStop>()).ToList<BusStop?>();
         }
 
         public async Task<DownstreamRouteDbo> GetDownstreamStopsAsync(string targetRouteId, string originStopId)
         {
             var pipeline = new BsonDocument[]
             {
-                // Stage 1: Match route ID
+                // Stage 1: Match the active copy of the route
                 new BsonDocument("$match",
-                    new BsonDocument("_id", targetRouteId)),
+                    new BsonDocument
+                    {
+                        { "route_id", targetRouteId },
+                        { "is_active", true }
+                    }),
 
                 // Stage 2: Calculate origin index and find matched stop
                 new BsonDocument("$addFields", new BsonDocument
@@ -114,7 +103,8 @@ namespace Busable.Data.Repositories
                 new BsonDocument("$project",
                     new BsonDocument
                     {
-                        { "_id", 1 },
+                        { "_id", 0 },
+                        { "route_id", 1 },
                         { "route_short_name", 1 },
                         { "origin_cumulative_time_sec", "$matchedStop.cumulative_time_sec" },
                         {
@@ -172,14 +162,14 @@ namespace Busable.Data.Repositories
                 return new List<BusStop>();
             }
 
-            var filter = Builders<BsonDocument>.Filter.In("_id", ids);
+            var filter = Builders<BsonDocument>.Filter.And(Builders<BsonDocument>.Filter.In("stop_id", ids), ActiveFilter);
             var docs = await GetStopsCollection().Find(filter).ToListAsync();
-            return docs.Select(doc => MapDocument(doc)).ToList();
+            return DistinctById(docs.Select(doc => MapDocument(doc)));
         }
 
         private static BusStop MapDocument(BsonDocument doc, double? sourceLatitude = null, double? sourceLongitude = null)
         {
-            var id = doc.GetValue("_id", BsonValue.Create(string.Empty)).ToString();
+            var id = doc.GetValue("stop_id", BsonValue.Create(string.Empty)).ToString();
             var name = doc.GetValue("stop_name",
                         doc.GetValue("Name", doc.GetValue("name", BsonValue.Create(string.Empty))))
                     .ToString();

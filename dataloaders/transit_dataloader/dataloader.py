@@ -14,15 +14,50 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from lib.mongodb import upload_data
+from lib.mongodb import load_agency_transit_data
 
 ### For local testing: 
 AGENCY = "ac-transit"
 ROUTE_COLOR_PALETTE = [
-    "#E6194B", "#3CB44B", "#4363D8", "#F58231", "#911EB4",
-    "#42D4F4", "#F032E6", "#469990", "#9A6324", "#800000",
-    "#808000", "#000075", "#E6AB02", "#1B9E77", "#D95F02",
-    "#7570B3", "#E7298A", "#66A61E", "#A6761D", "#1F78B4",
+    # --- Red & Crimson (1-10) ---
+    "#E6194B", "#C8102E", "#9A0007", "#D32F2F", "#B71C1C",
+    "#FF1744", "#880E4F", "#E53935", "#AD1457", "#D81B60",
+
+    # --- Orange & Amber (11-20) ---
+    "#F58231", "#D95F02", "#E65100", "#FF6F00", "#BF360C",
+    "#EF6C00", "#F4511E", "#D84315", "#E6AB02", "#A6761D",
+
+    # --- Gold & Dark Yellow (21-30) ---
+    "#808000", "#B7950B", "#B58900", "#9A6324", "#7D6608",
+    "#D4AC0D", "#AF601A", "#883500", "#6E2C00", "#935116",
+
+    # --- Green & Lime (31-40) ---
+    "#3CB44B", "#1B9E77", "#66A61E", "#2E7D32", "#1B5E20",
+    "#008000", "#00A86B", "#006400", "#558B2F", "#33691E",
+
+    # --- Teal & Mint (41-50) ---
+    "#469990", "#008577", "#00695C", "#004D40", "#008080",
+    "#005F73", "#0A9396", "#007A78", "#116466", "#014F56",
+
+    # --- Cyan & Light Blue (51-60) ---
+    "#42D4F4", "#00838F", "#006064", "#0288D1", "#01579B",
+    "#0077B6", "#0096C7", "#00B4D8", "#03045E", "#023E8A",
+
+    # --- Blue & Navy (61-70) ---
+    "#4363D8", "#1F78B4", "#000075", "#1565C0", "#0D47A1",
+    "#1E3A8A", "#1D4ED8", "#2563EB", "#1A237E", "#0F172A",
+
+    # --- Purple & Indigo (71-80) ---
+    "#911EB4", "#7570B3", "#6A1B9A", "#4A148C", "#512DA8",
+    "#311B92", "#4C1D95", "#581C87", "#6B21A8", "#7E22CE",
+
+    # --- Magenta & Deep Pink (81-90) ---
+    "#F032E6", "#E7298A", "#C2185B", "#880E4F", "#A21CAF",
+    "#BE185D", "#9D174D", "#831843", "#701A75", "#86198F",
+
+    # --- Brown & Earth Tones (91-100) ---
+    "#5C4033", "#4A235A", "#421880", "#5D4037", "#3E2723",
+    "#4A3B32", "#5B3A29", "#3B2F2F", "#4A0E17", "#31111D",
 ]
 
 ### Place GTFS files in a folder called "data" in the same directory as this script
@@ -168,7 +203,7 @@ def create_basic_stops(agency):
     Creates basic stops:
     {
         "stop_id": {
-            "_id": "stop_100234",
+            "stop_id": "ac-transit_stop_100234",
             "stop_name": "El Cerrito Plaza BART",
             "agency": "ac-transit",
             "location": {
@@ -186,7 +221,7 @@ def create_basic_stops(agency):
         for stop in load_file(agency=agency, gtfsFileName="stops", path=None):
             new_stop = {}
             new_stop_id = get_id(agency, "stop", stop["stop_id"])
-            new_stop["_id"] = new_stop_id
+            new_stop["stop_id"] = new_stop_id
             new_stop["stop_name"] = stop["stop_name"]
             new_stop["agency"] = agency
             new_stop["routes_served"] = []
@@ -197,7 +232,7 @@ def create_basic_stops(agency):
                 "type": "Point",
                 "coordinates": [float(stop["stop_lon"]), float(stop["stop_lat"])]
             }
-            stops[new_stop["_id"]] = new_stop
+            stops[new_stop_id] = new_stop
         print(f"Processed {len(stops)} stops for agency {agency}")
         return stops
     except Exception as e:
@@ -312,10 +347,9 @@ def lambda_handler(event, context):
         delete_trigger_file(bucket, key)
         print(f"Processed {len(stops)} stops for agency {agency}")
 
-        # Run the upload
-        data_version = datetime.now().strftime("%Y%m%d_%H%M%S")
-        upload_data(data=stops, collection_name="stops" + "_" + agency + "_" + data_version)
-        upload_data(data=routes, collection_name="routes" + "_" + agency + "_" + data_version)
+        # Load inactive, then swap it in for this agency's current data
+        load_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        load_agency_transit_data(agency=agency, stops=stops, routes=routes, load_id=load_id)
 
     except Exception as e:
         print(f"Error in lambda_handler: {e}")
@@ -349,7 +383,7 @@ def process_route_documents(agency):
     """
     Creates route documents shaped like:
     {
-        "_id": "ac-transit_route_W_0",
+        "route_id": "ac-transit_route_W_0",
         "agency": "ac-transit",
         "route_short_name": "W",
         "route_color": "#4363D8",
@@ -398,9 +432,10 @@ def process_route_documents(agency):
                     "cumulative_time_sec": cumulative_time_sec,
                 })
 
-            doc_id = f"{agency}_route_{route_short_name}_{direction_id}"
+            # Same id format as routes_served on stops, so a route id from a stop finds its route document
+            doc_id = get_id(agency, "route", route_id, str(direction_id))
             route_docs[doc_id] = {
-                "_id": doc_id,
+                "route_id": doc_id,
                 "agency": agency,
                 "route_short_name": route_short_name,
                 "route_color": route_meta.get("route_color") or get_route_color(trip),
@@ -423,8 +458,7 @@ def main():
     routes = list(process_route_documents(AGENCY).values())
 
     # Run the upload
-    upload_data(data=stops, collection_name="stops" + "_" + AGENCY + "_" + data_version)
-    upload_data(data=routes, collection_name="routes" + "_" + AGENCY + "_" + data_version)
+    load_agency_transit_data(agency=AGENCY, stops=stops, routes=routes, load_id=data_version)
     
 if __name__ == "__main__":
     main()

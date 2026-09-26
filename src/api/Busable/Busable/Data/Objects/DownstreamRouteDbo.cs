@@ -3,10 +3,11 @@
 namespace Busable.Data.Objects
 {
 
+    [BsonIgnoreExtraElements]
     public class DownstreamRouteDbo
     {
-        [BsonId]
-        public string Id { get; set; }
+        [BsonElement("route_id")]
+        public string RouteId { get; set; }
 
         [BsonElement("route_short_name")]
         public string RouteShortName { get; set; }

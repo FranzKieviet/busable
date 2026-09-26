@@ -46,7 +46,7 @@ namespace Busable.Business.Services
 
             var response = new DownstreamPlacesResponse
             {
-                RouteId = route.Id,
+                RouteId = route.RouteId,
                 RouteShortName = route.RouteShortName ?? string.Empty,
                 OriginStopId = request.StopId
             };
@@ -62,7 +62,7 @@ namespace Busable.Business.Services
             {
                 if (!stopsById.TryGetValue(orderedStop.StopId, out var stop))
                 {
-                    _logger.LogWarning("Downstream stop {StopId} on route {RouteId} not found in stops collection", orderedStop.StopId, route.Id);
+                    _logger.LogWarning("Downstream stop {StopId} on route {RouteId} not found in stops collection", orderedStop.StopId, route.RouteId);
                     continue;
                 }
 

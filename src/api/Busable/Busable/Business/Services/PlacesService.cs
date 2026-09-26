@@ -81,8 +81,26 @@ namespace Busable.Business.Services
             {
                 var placeLongitude = place.Location.Coordinates[0];
                 var placeLatitude = place.Location.Coordinates[1];
-                var closestStop = response.Stops.MinBy(s => CoordinateCalculator.GetDistanceInMeters(s.Latitude, s.Longitude, placeLatitude, placeLongitude));
-                closestStop?.Places.Add(place);
+                var closest = response.Stops
+                    .Select(s => (Stop: s, DistanceM: CoordinateCalculator.GetDistanceInMeters(s.Latitude, s.Longitude, placeLatitude, placeLongitude)))
+                    .MinBy(x => x.DistanceM);
+                if (closest.Stop == null)
+                {
+                    continue;
+                }
+
+                closest.Stop.Places.Add(new DownstreamPlace
+                {
+                    Id = place.Id,
+                    Name = place.Name,
+                    Category = place.Category,
+                    Brand = place.Brand,
+                    Popularity_Score = place.Popularity_Score,
+                    Location = place.Location,
+                    ClosestStopId = closest.Stop.StopId,
+                    ClosestStopName = closest.Stop.StopName,
+                    DistanceToStopM = Math.Round(closest.DistanceM, 1)
+                });
             }
 
             foreach (var stop in response.Stops)

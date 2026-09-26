@@ -29,6 +29,17 @@ namespace Busable.Business.Objects
         // Travel time in seconds from the origin stop to this stop
         public int TravelTimeSec { get; set; }
 
-        public List<Place> Places { get; set; } = new List<Place>();
+        public List<DownstreamPlace> Places { get; set; } = new List<DownstreamPlace>();
+    }
+
+    public class DownstreamPlace : Place
+    {
+        // Downstream stop closest to this place
+        public string ClosestStopId { get; set; } = string.Empty;
+
+        public string ClosestStopName { get; set; } = string.Empty;
+
+        // Straight line distance in meters from the closest stop to this place
+        public double DistanceToStopM { get; set; }
     }
 }

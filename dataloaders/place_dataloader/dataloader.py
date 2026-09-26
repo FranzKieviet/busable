@@ -17,9 +17,9 @@ if str(REPO_ROOT) not in sys.path:
 from .query_config import get_place_query
 from lib.mongodb import upload_data
 
-# Coordinates around Sather Gate (1km Bounding Box)
-XMIN, YMIN = -122.2695, 37.8603
-XMAX, YMAX = -122.2495, 37.8803
+# Bounding box around the nine Bay Area counties (Sonoma/Napa in the north to Santa Clara in the south)
+XMIN, YMIN = -123.55, 36.89
+XMAX, YMAX = -121.20, 38.87
 
 OVERTURE_BUCKET = "overturemaps-us-west-2"
 OVERTURE_REGION = "us-west-2"

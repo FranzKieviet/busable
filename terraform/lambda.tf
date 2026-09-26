@@ -8,8 +8,9 @@ resource "aws_lambda_function" "dataloader" {
   package_type = "Image"
   image_uri    = "${aws_ecr_repository.dataloader.repository_url}:${var.image_tag != null ? var.image_tag : "latest"}"
 
-  timeout     = 300
-  memory_size = 512
+  # Sized for the Bay Area places load (DuckDB scan of Overture over S3)
+  timeout     = 900
+  memory_size = 2048
 
   environment {
     variables = {

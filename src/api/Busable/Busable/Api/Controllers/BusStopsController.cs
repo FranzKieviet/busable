@@ -22,7 +22,7 @@ namespace Busable.Api.Controllers
         /***
          Input: Location object 
          Response: List of bus stops sorted by distance from the input location.
-            If byLine is true, only the nearest stop for each unique route is returned, along with the list of unique routes.
+            If uniqueOnly is true, only the nearest stop for each unique route is returned, along with the list of unique routes.
             //TODO Write better docs here :)
          ***/
 

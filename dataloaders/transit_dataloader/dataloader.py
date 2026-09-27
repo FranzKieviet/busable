@@ -155,6 +155,42 @@ def process_trips(agency):
         print(f"Error processing trips for agency {agency}: {e}")
         return {}
 
+def seconds_to_time(total_seconds):
+    """Converts total seconds to HH:MM:SS, hours can go past 24 like GTFS times."""
+    total_seconds = int(round(total_seconds))
+    return f"{total_seconds // 3600:02d}:{total_seconds % 3600 // 60:02d}:{total_seconds % 60:02d}"
+
+def fill_missing_times(trip_list):
+    """
+    GTFS only requires times on timepoints, other stops can have blank arrival/departure times.
+    Fills those in place by interpolating between the surrounding timed stops, using
+    shape_dist_traveled when the feed has it and the number of stops otherwise.
+    """
+    for stop in trip_list:
+        # A stop with only one of the two times gets the same value for both
+        if not stop["arrival_time"]:
+            stop["arrival_time"] = stop["departure_time"]
+        if not stop["departure_time"]:
+            stop["departure_time"] = stop["arrival_time"]
+
+    timed = [i for i, stop in enumerate(trip_list) if stop["arrival_time"]]
+    for start, end in zip(timed, timed[1:]):
+        if end - start < 2:
+            continue
+        start_sec = time_to_seconds(trip_list[start]["departure_time"])
+        end_sec = time_to_seconds(trip_list[end]["arrival_time"])
+        try:
+            dists = [float(trip_list[i]["shape_dist_traveled"]) for i in range(start, end + 1)]
+        except ValueError:
+            dists = None
+        if not dists or dists[-1] <= dists[0]:
+            dists = list(range(start, end + 1))
+        for i in range(start + 1, end):
+            fraction = (dists[i - start] - dists[0]) / (dists[-1] - dists[0])
+            time = seconds_to_time(start_sec + fraction * (end_sec - start_sec))
+            trip_list[i]["arrival_time"] = time
+            trip_list[i]["departure_time"] = time
+
 def process_trip_times(agency, trips):
     """
     Creates trips times:
@@ -190,16 +226,19 @@ def process_trip_times(agency, trips):
                     "stop_id": get_id(agency, "stop", trip_time["stop_id"]),
                     "arrival_time": trip_time["arrival_time"],
                     "departure_time": trip_time["departure_time"],
-                    "route_id": route_id
+                    "route_id": route_id,
+                    "stop_sequence": int(trip_time["stop_sequence"]),
+                    "shape_dist_traveled": trip_time.get("shape_dist_traveled", "")
                 }
             if trip_time["trip_id"] in trip_times:
                 trip_times[trip_time["trip_id"]].append(new_trip_time)
             else:
                 trip_times[trip_time["trip_id"]] = [new_trip_time]
 
-        #Sort the trips by arrival time for each trip_id
+        #Sort the trips by stop sequence for each trip_id, some feeds leave times blank on non-timepoint stops
         for trip_id in trip_times:
-            trip_times[trip_id] = sorted(trip_times[trip_id], key=lambda x: x["arrival_time"])
+            trip_times[trip_id] = sorted(trip_times[trip_id], key=lambda x: x["stop_sequence"])
+            fill_missing_times(trip_times[trip_id])
         print(f"Processed {len(trip_times)} trips for agency {agency}")
         return trip_times
     except Exception as e:

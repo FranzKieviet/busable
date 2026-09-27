@@ -70,7 +70,7 @@ def load_file(agency, gtfsFileName, path=None):
 
     # 1) try local file
     if file_path.exists():
-        with file_path.open(newline="", encoding="utf-8") as fh:
+        with file_path.open(newline="", encoding="utf-8-sig") as fh:
             reader = csv.DictReader(fh)
             for row in reader:
                 yield row
@@ -85,7 +85,7 @@ def load_file(agency, gtfsFileName, path=None):
     s3 = boto3.client("s3")
     try:
         obj = s3.get_object(Bucket=s3_bucket, Key=s3_key)
-        body = obj["Body"].read().decode("utf-8")
+        body = obj["Body"].read().decode("utf-8-sig")  # utf-8-sig drops the byte order mark some feeds (e.g. OCTA) start with
         fh = StringIO(body)
         reader = csv.DictReader(fh)
         for row in reader:
@@ -344,12 +344,14 @@ def lambda_handler(event, context):
         agency = file_name.split("_")[0]
         stops = list(process_stops(agency).values())
         routes = list(process_route_documents(agency).values())
-        delete_trigger_file(bucket, key)
         print(f"Processed {len(stops)} stops for agency {agency}")
 
         # Load inactive, then swap it in for this agency's current data
         load_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         load_agency_transit_data(agency=agency, stops=stops, routes=routes, load_id=load_id)
+
+        # Only remove the trigger once the new data is live, so a failed load leaves it in place to retry
+        delete_trigger_file(bucket, key)
 
     except Exception as e:
         print(f"Error in lambda_handler: {e}")

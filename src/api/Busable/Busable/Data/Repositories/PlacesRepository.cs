@@ -11,49 +11,36 @@ namespace Busable.Data.Repositories
     {
         private QueryHelper _queryHelper;
         private readonly IMongoDatabase _database;
-        private readonly string _placesVersionsCollectionName;
-        private readonly string _placesFallbackCollectionName;
+        private readonly string _placesCollectionName;
         private readonly ILogger<PlacesRepository> _logger;
         private const double EarthRadiusMeters = 6378100.0; // radius MongoDB uses for $centerSphere
 
-        public PlacesRepository(IMongoDatabase database, string placesVersionsCollectionName, string placesFallbackCollectionName, ILogger<PlacesRepository> logger)
+        public PlacesRepository(IMongoDatabase database, string placesCollectionName, ILogger<PlacesRepository> logger)
         {
             _database = database ?? throw new ArgumentNullException(nameof(database));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _placesVersionsCollectionName = placesVersionsCollectionName ?? throw new ArgumentNullException(nameof(placesVersionsCollectionName));
-            _placesFallbackCollectionName = placesFallbackCollectionName ?? throw new ArgumentNullException(nameof(placesFallbackCollectionName));
+            _placesCollectionName = placesCollectionName ?? throw new ArgumentNullException(nameof(placesCollectionName));
 
             _queryHelper = new QueryHelper();
-            _logger.LogInformation("PlacesRepository initialized with database '{DatabaseName}' and versions collection: '{PlacesVersions}'", _database.DatabaseNamespace.DatabaseName, _placesVersionsCollectionName);
+            _logger.LogInformation("PlacesRepository initialized with database '{DatabaseName}' and collection: '{Places}'", _database.DatabaseNamespace.DatabaseName, _placesCollectionName);
         }
 
-        private string ResolveLatestCollectionName(string versionsCollectionName, string fallback)
-        {
-            try
-            {
-                var versionsColl = _database.GetCollection<BsonDocument>(versionsCollectionName);
-                var filter = Builders<BsonDocument>.Filter.Eq("is_latest", true);
-                var doc = versionsColl.Find(filter).Sort(Builders<BsonDocument>.Sort.Descending("created_at")).FirstOrDefault();
-                if (doc != null && doc.Contains("collection_name"))
-                {
-                    return doc["collection_name"].AsString;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to resolve latest collection from versions collection {VersionsColl}; falling back to {Fallback}", versionsCollectionName, fallback);
-            }
-            return fallback;
-        }
+        private IMongoCollection<BsonDocument> GetPlacesCollection() => _database.GetCollection<BsonDocument>(_placesCollectionName);
 
-        private IMongoCollection<BsonDocument> GetPlacesCollection() => _database.GetCollection<BsonDocument>(ResolveLatestCollectionName(_placesVersionsCollectionName, _placesFallbackCollectionName));
+        // The dataloader inserts each region's new places as inactive, then swaps them to active in one transaction.
+        // Only active documents are ever served.
+        private static readonly FilterDefinition<BsonDocument> ActiveFilter = Builders<BsonDocument>.Filter.Eq("is_active", true);
+
+        // A query that is still reading while a swap commits can pick up both the old and new copy of a place.
+        // Keep the first copy of each place id so callers never see duplicates.
+        private static List<Place> DistinctById(IEnumerable<Place> places) => places.GroupBy(p => p.Id).Select(g => g.First()).ToList();
 
         public async Task<List<Place?>> GetNearestPlacesAsync(double latitude, double longitude, double maxDistanceM)
         {
             _logger.LogInformation("GetNearestPlacesAsync called. Lat: {Lat}, Lng: {Lng}, Radius: {Dist}m", latitude, longitude, maxDistanceM);
-            var docs = await _queryHelper.GetNearestAsync(GetPlacesCollection(), latitude, longitude, maxDistanceM);
+            var docs = await _queryHelper.GetNearestAsync(GetPlacesCollection(), latitude, longitude, maxDistanceM, ActiveFilter);
             _logger.LogInformation("Mongo Query returned {Count} raw documents for places query.", docs?.Count ?? 0);
-            return docs?.Select(doc => MapDocument(doc, latitude, longitude)).ToList() ?? new List<Place?>();
+            return DistinctById(docs?.Select(doc => MapDocument(doc, latitude, longitude)) ?? Enumerable.Empty<Place>()).ToList<Place?>();
         }
 
         public async Task<List<Place>> GetPlacesNearAnyAsync(IEnumerable<(double Latitude, double Longitude)> points, double maxDistanceM)
@@ -68,17 +55,19 @@ namespace Busable.Data.Repositories
             // $centerSphere takes its radius in radians
             // Using the $near like above works well around a single point, this works with many points
             var radiusRadians = maxDistanceM / EarthRadiusMeters;
-            var filter = Builders<BsonDocument>.Filter.Or(pointList.Select(p =>
+            var nearAny = Builders<BsonDocument>.Filter.Or(pointList.Select(p =>
                 Builders<BsonDocument>.Filter.GeoWithinCenterSphere("location", p.Longitude, p.Latitude, radiusRadians)));
+            var filter = Builders<BsonDocument>.Filter.And(nearAny, ActiveFilter);
 
             var docs = await GetPlacesCollection().Find(filter).ToListAsync();
             _logger.LogInformation("Mongo Query returned {Count} raw documents for places near points query.", docs.Count);
-            return docs.Select(doc => MapDocument(doc, 0, 0)).ToList();
+            return DistinctById(docs.Select(doc => MapDocument(doc, 0, 0)));
         }
 
         private static Place MapDocument(BsonDocument doc, double sourceLatitude, double sourceLongitude)
         {
-            var id = doc.GetValue("_id", BsonValue.Create(string.Empty)).ToString();
+            // Overture's id stays the same across loads, while _id changes every load
+            var id = doc.GetValue("id", doc.GetValue("_id", BsonValue.Create(string.Empty))).ToString();
             var name = doc.GetValue("stop_name",
                         doc.GetValue("Name", doc.GetValue("name", BsonValue.Create(string.Empty))))
                     .ToString();

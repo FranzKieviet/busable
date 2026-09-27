@@ -21,8 +21,9 @@ def get_place_query(release, xMin, xMax, yMin, yMax):
 
                 FROM read_parquet('s3://overturemaps-us-west-2/release/{release}/theme=places/type=place/*', hive_partitioning=1)
 
-                WHERE bbox.xmin BETWEEN {xMin} AND {xMax}
-                AND bbox.ymin BETWEEN {yMin} AND {yMax}
+                -- Half-open ranges so a place on the edge between two boxes is only loaded once
+                WHERE bbox.xmin >= {xMin} AND bbox.xmin < {xMax}
+                AND bbox.ymin >= {yMin} AND bbox.ymin < {yMax}
                 AND operating_status != 'permanently_closed'
                 AND confidence > 0.6
                 AND category IN (

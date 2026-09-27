@@ -27,46 +27,14 @@ var mongoDatabaseName = builder.Configuration.GetValue<string>("Mongo:DatabaseNa
     ?? Environment.GetEnvironmentVariable("MONGO_DATABASE_NAME")
     ?? "busable_feat_routing";
 
-var settings = MongoClientSettings.FromConnectionString(mongoConnectionString);
-var client = new MongoClient(settings);
-
 builder.Services.AddSingleton<IMongoClient>(_ => new MongoClient(mongoConnectionString));
 builder.Services.AddSingleton<IMongoDatabase>(sp => sp.GetRequiredService<IMongoClient>().GetDatabase(mongoDatabaseName));
-// Resolve collection name from environment variable if provided, otherwise use the
-// routing dataset collection used in your environment.
-// Helper to resolve latest collection name from versions collection, env var, or fallback
-static string ResolveLatestCollectionName(IMongoDatabase db, string versionsCollectionName, string envVarName, string fallback)
-{
-    var envVal = Environment.GetEnvironmentVariable(envVarName);
-    if (!string.IsNullOrWhiteSpace(envVal)) return envVal;
-
-    try
-    {
-        var versionsColl = db.GetCollection<BsonDocument>(versionsCollectionName);
-        var filter = Builders<BsonDocument>.Filter.Eq("is_latest", true);
-        var doc = versionsColl.Find(filter).Sort(Builders<BsonDocument>.Sort.Descending("created_at")).FirstOrDefault();
-        if (doc != null && doc.Contains("collection_name"))
-        {
-            return doc["collection_name"].AsString;
-        }
-    }
-    catch (Exception)
-    {
-        // ignore and fall back
-    }
-
-    return fallback;
-}
-
-var database = client.GetDatabase(mongoDatabaseName);
-
-var placesCollectionName = ResolveLatestCollectionName(database, "places_data_versions", "MONGO__PLACES_COLLECTION_NAME", "places_20260813_193405");
-
 
 // Every agency's stops and routes live in these two collections; the dataloader flags the live copy with is_active
 var stopsCollectionName = Environment.GetEnvironmentVariable("MONGO__STOPS_COLLECTION_NAME") ?? "stops";
 var routesCollectionName = Environment.GetEnvironmentVariable("MONGO__ROUTES_COLLECTION_NAME") ?? "routes";
-var placesFallback = Environment.GetEnvironmentVariable("MONGO__PLACES_COLLECTION_NAME") ?? "places_20260813_193405";
+// Every region's places live in this collection; the dataloader flags the live copy with is_active
+var placesCollectionName = Environment.GetEnvironmentVariable("MONGO__PLACES_COLLECTION_NAME") ?? "places";
 
 builder.Services.AddSingleton<IBusStopsRepository>(sp =>
     new BusStopRepository(
@@ -78,8 +46,7 @@ builder.Services.AddSingleton<IBusStopsRepository>(sp =>
 builder.Services.AddSingleton<IPlacesRepository>(sp =>
     new PlacesRepository(
         sp.GetRequiredService<IMongoDatabase>(),
-        "places_data_versions",
-        placesFallback,
+        placesCollectionName,
         sp.GetRequiredService<ILogger<PlacesRepository>>()
     ));
 builder.Services.AddScoped<IBusStopsService, BusStopsService>();

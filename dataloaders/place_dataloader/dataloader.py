@@ -2,6 +2,7 @@ import json
 import math
 import os
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 import boto3
@@ -15,11 +16,29 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from .query_config import get_place_query
-from lib.mongodb import upload_data
+from lib.mongodb import load_region_places
 
-# Bounding box around the nine Bay Area counties (Sonoma/Napa in the north to Santa Clara in the south)
-XMIN, YMIN = -123.55, 36.89
-XMAX, YMAX = -121.20, 38.87
+# Each region is loaded by dropping {region}.txt into the triggers folder, and is swapped in on its own.
+# A region is one or more (xmin, ymin, xmax, ymax) boxes, queried one after another in the same Lambda run.
+# Boxes must not overlap, or places on the overlap are loaded twice.
+# If a region's run gets close to the 15 minute Lambda limit (see the timings in the logs), split it into
+# two regions with their own trigger files rather than adding boxes, since each region runs separately.
+PLACE_REGIONS = {
+    # Nine Bay Area counties, Sonoma/Napa in the north to Santa Clara in the south (also covers Sacramento and Stockton)
+    "bay-area": [
+        (-123.55, 36.89, -121.20, 38.87),
+    ],
+    "central": [
+        # Monterey and Fresno south to San Luis Obispo and Bakersfield
+        (-122.00, 34.80, -115.60, 36.89),
+        # Central Valley and Sierra east of the Bay Area box: Modesto, Merced, Yosemite
+        (-121.20, 36.89, -118.00, 38.87),
+    ],
+    # Santa Barbara to San Diego, east to the Arizona border
+    "socal": [
+        (-121.00, 32.50, -114.10, 34.80),
+    ],
+}
 
 OVERTURE_BUCKET = "overturemaps-us-west-2"
 OVERTURE_REGION = "us-west-2"
@@ -66,32 +85,30 @@ def _latest_overture_release():
     return max(releases)
 
 
-def process_places():
+def process_places(region):
+    boxes = PLACE_REGIONS[region]
     con = _connect()
     release = _latest_overture_release()
-    query = get_place_query(release, XMIN, XMAX, YMIN, YMAX)
+    print(f"Querying Overture Maps release {release} on AWS S3 for region {region} ({len(boxes)} boxes)...")
 
-    print(f"Querying Overture Maps release {release} on AWS S3...")
+    places = []
+    for xmin, ymin, xmax, ymax in boxes:
+        started = time.monotonic()
+        places.extend(_process_box(con, release, xmin, ymin, xmax, ymax))
+        print(f"Box ({xmin}, {ymin}, {xmax}, {ymax}): {len(places)} places so far, took {time.monotonic() - started:.0f}s")
+
+    return places
+
+
+def _process_box(con, release, xmin, ymin, xmax, ymax):
+    query = get_place_query(release, xmin, xmax, ymin, ymax)
 
     # 1. Execute Query and create DataFrame
-    try:
-        df = con.sql(query).df()
-        print(f"\nExtracted {len(df)} places from Overture S3!")
+    df = con.sql(query).df()
+    print(f"Extracted {len(df)} places from Overture S3")
 
-        # 2. Replace NaN / NaT values across the entire DataFrame with None (JSON null)
-        df = df.replace({np.nan: None})
-    except Exception as e:
-        # Fallback: try loading a local sample JSON file included in the repo
-        local_sample = Path(__file__).parent / "overture_berkeley_places.json"
-        if local_sample.exists():
-            print(f"Failed to query Overture S3 ({e}). Falling back to local sample {local_sample}")
-            import json as _json
-            with local_sample.open(encoding="utf-8") as fh:
-                places_list = _json.load(fh)
-            print(f"Loaded {len(places_list)} places from local sample")
-            return places_list
-        else:
-            raise
+    # 2. Replace NaN / NaT values across the entire DataFrame with None (JSON null)
+    df = df.replace({np.nan: None})
 
     # Helper to safely clean individual fields
     def safe_float(val, default=0.0):
@@ -121,16 +138,20 @@ def process_places():
 
     return places
 
-def main():
-    """Programmatic entrypoint for invoking the places dataloader (e.g. from Lambda router)."""
-    
-    data_version = datetime.now().strftime("%Y%m%d_%H%M%S")
-    places = process_places()
-    
-    upload_data(data=places, collection_name="places" + "_" + data_version)
-    print(f"Saved places collection: places_{data_version} ({len(places)} records)")
+def main(region):
+    """Programmatic entrypoint for invoking the places dataloader for one region (e.g. from Lambda router)."""
+    if region not in PLACE_REGIONS:
+        raise ValueError(f"Unknown places region '{region}'. Known regions: {', '.join(PLACE_REGIONS)}")
 
-    return {"collection": f"places_{data_version}", "count": len(places)}
+    started = time.monotonic()
+    load_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    places = process_places(region)
+
+    # Load inactive, then swap it in for this region's current places
+    load_region_places(region=region, places=places, load_id=load_id)
+    print(f"Loaded {len(places)} places for region {region} in {time.monotonic() - started:.0f}s")
+
+    return {"region": region, "load_id": load_id, "count": len(places)}
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1] if len(sys.argv) > 1 else "bay-area")

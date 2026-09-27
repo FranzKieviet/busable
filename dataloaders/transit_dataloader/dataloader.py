@@ -1,10 +1,10 @@
 import csv
 import hashlib
+import io
 import os
 import sys
 import urllib.parse
 from datetime import datetime
-from io import StringIO
 from pathlib import Path
 
 import boto3
@@ -85,8 +85,9 @@ def load_file(agency, gtfsFileName, path=None):
     s3 = boto3.client("s3")
     try:
         obj = s3.get_object(Bucket=s3_bucket, Key=s3_key)
-        body = obj["Body"].read().decode("utf-8-sig")  # utf-8-sig drops the byte order mark some feeds (e.g. OCTA) start with
-        fh = StringIO(body)
+        # Stream the body instead of reading it into memory, stop_times for large agencies (e.g. LA Metro) is hundreds of MB
+        # utf-8-sig drops the byte order mark some feeds (e.g. OCTA) start with
+        fh = io.TextIOWrapper(obj["Body"], encoding="utf-8-sig", newline="")
         reader = csv.DictReader(fh)
         for row in reader:
             yield row
@@ -172,12 +173,19 @@ def process_trip_times(agency, trips):
                 "route_id": "AC_7"
             }
         ]
+
+    Only the first trip seen for each route (per the trips mapping) is kept, since callers
+    use a single representative trip per route and holding every stop_time runs out of memory
+    for large agencies.
     """
     try:
         trip_times = {}
+        representative_trips = {}
         #Process each time a bus stops at a stop, and add it to the trips dictionary
         for trip_time in load_file(agency=agency, gtfsFileName="stop_times", path=None):
             route_id = trips[trip_time["trip_id"]]
+            if representative_trips.setdefault(route_id, trip_time["trip_id"]) != trip_time["trip_id"]:
+                continue
             new_trip_time ={
                     "stop_id": get_id(agency, "stop", trip_time["stop_id"]),
                     "arrival_time": trip_time["arrival_time"],
@@ -402,7 +410,11 @@ def process_route_documents(agency):
         for trip in load_file(agency=agency, gtfsFileName="trips", path=None):
             trip_rows[trip["trip_id"]] = trip
 
-        trip_times = process_trip_times(agency, {trip_id: trip["route_id"] for trip_id, trip in trip_rows.items()})
+        # Key by route and direction so process_trip_times keeps a trip for each direction
+        trip_times = process_trip_times(agency, {
+            trip_id: get_id(agency, "route", trip["route_id"], trip.get("direction_id", "0"))
+            for trip_id, trip in trip_rows.items()
+        })
         route_docs = {}
         seen_trip_paths = set()
 

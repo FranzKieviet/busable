@@ -8,6 +8,6 @@ output "bucket_arn" {
   value       = aws_s3_bucket.ingestion_bucket.arn
 }
 
-output "alb_url" {
-  value = "http://${aws_lb.busable_api.dns_name}"
+output "api_url" {
+  value = aws_lambda_function_url.busable_api.function_url
 }

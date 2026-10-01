@@ -35,8 +35,8 @@ resource "aws_iam_role_policy" "ingestion_lambda_policy" {
   })
 }
 
-resource "aws_iam_role" "ecs_execution_role" {
-  name = "busable-ecs-execution-role-${var.branch}"
+resource "aws_iam_role" "api_lambda_role" {
+  name = "busable-api-lambda-role-${var.branch}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -45,16 +45,16 @@ resource "aws_iam_role" "ecs_execution_role" {
         Action = "sts:AssumeRole"
         Effect = "Allow"
         Principal = {
-          Service = "ecs-tasks.amazonaws.com"
+          Service = "lambda.amazonaws.com"
         }
       }
     ]
   })
 }
 
-resource "aws_iam_role_policy_attachment" "ecs_execution_role_policy" {
-  role       = aws_iam_role.ecs_execution_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+resource "aws_iam_role_policy_attachment" "api_lambda_role_policy" {
+  role       = aws_iam_role.api_lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
 resource "aws_iam_role" "lambda_role" {
